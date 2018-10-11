@@ -6,6 +6,10 @@
   "main": "index.js",
   "license": "MIT",
   "private": "false",
+  "repository": {
+    "type": "git",
+    "url": "git://github.com/gmeeker/queuebernetes.git"
+  },
   "scripts": {
     "lint": "eslint .",
     "lint:fix": "eslint --fix ."

@@ -5,6 +5,10 @@
   "author": "Garrick Meeker",
   "main": "lib/index.js",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git://github.com/gmeeker/queuebernetes.git"
+  },
   "publishConfig": {
     "access": "public"
   },

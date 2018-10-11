@@ -1,0 +1,92 @@
+{
+  "apiVersion": "batch/v1",
+  "kind": "Job",
+  "metadata": {
+    "generateName": "queuebernetes-job-"
+  },
+  "spec": {
+    "backoffLimit": 0,
+    "template": {
+      "metadata": {
+        "generateName": "queuebernetes-job-",
+        "labels": {
+          "app": "queuebernetes-controller"
+        },
+        "annotations": {
+          "queuebernetes.io/maxTasks": "1",
+          "queuebernetes.io/timeout": "5",
+          "queuebernetes.io/keepAlive": "5"
+        }
+      },
+      "spec": {
+        "restartPolicy": "Never",
+        "containers": [
+          {
+            "name": "queuebernetes-job",
+            "image": "us.gcr.io/GCLOUD_PROJECT/queuebernetes-examples:latest",
+            "imagePullPolicy": "Always",
+            "command": ["node"],
+            "args": ["/app/examples/controller/job.js"],
+            "livenessProbe": {
+              "httpGet": {
+                "path": "/healthz",
+                "port": 3000
+              },
+              "initialDelaySeconds": 30,
+              "timeoutSeconds": 1
+            },
+            "readinessProbe": {
+              "httpGet": {
+                "path": "/healthz",
+                "port": 3000
+              },
+              "initialDelaySeconds": 30,
+              "timeoutSeconds": 1
+            },
+            "resources": {
+              "requests": {
+                "cpu": 0.5,
+                "memory": "512Mi"
+              }
+            },
+            "ports": [
+              {
+                "containerPort": 3000
+              }
+            ],
+            "env": [
+              {
+                "name": "MONGODB",
+                "value": "mongodb://testUser:test@mongod-0.mongodb-service.test.svc.cluster.local:27017/testQueue?authMechanism=DEFAULT&authSource=admin"
+              },
+              {
+                "name": "MAX_TASKS",
+                "valueFrom": {
+                  "fieldRef": {
+                    "fieldPath": "metadata.annotations['queuebernetes.io/maxTasks']"
+                  }
+                }
+              },
+              {
+                "name": "TIMEOUT",
+                "valueFrom": {
+                  "fieldRef": {
+                    "fieldPath": "metadata.annotations['queuebernetes.io/timeout']"
+                  }
+                }
+              },
+              {
+                "name": "KEEP_ALIVE",
+                "valueFrom": {
+                  "fieldRef": {
+                    "fieldPath": "metadata.annotations['queuebernetes.io/keepAlive']"
+                  }
+                }
+              }
+            ]
+          }
+        ]
+      }
+    }
+  }
+}

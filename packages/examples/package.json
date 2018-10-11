@@ -1,0 +1,28 @@
+{
+  "name": "@queuebernetes/examples",
+  "description": "Example usage of Queuebernetes",
+  "version": "0.0.1",
+  "author": "Garrick Meeker",
+  "main": "lib/index.js",
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
+  "dependencies": {
+    "@google-cloud/logging": "^3.0.1",
+    "body-parser": "^1.18.3",
+    "express": "^4.16.3",
+    "mongodb": "^3.1.4",
+    "@queuebernetes/core": "^0.0.1",
+    "@queuebernetes/mongodb": "^0.0.1"
+  },
+  "engines": {
+    "node": ">=8"
+  },
+  "tags": [
+    "examples",
+    "kubernetes",
+    "mongodb",
+    "queue"
+  ]
+}

@@ -1,0 +1,39 @@
+{
+  "name": "queuebernetes",
+  "description": "Long running job queue for Kubernetes",
+  "version": "0.0.1",
+  "author": "Garrick Meeker",
+  "main": "index.js",
+  "license": "MIT",
+  "private": "false",
+  "scripts": {
+    "lint": "eslint .",
+    "lint:fix": "eslint --fix ."
+  },
+  "devDependencies": {
+    "eslint": "^4.19.1",
+    "eslint-config-airbnb": "^16.1.0",
+    "eslint-plugin-import": "^2.11.0",
+    "eslint-plugin-jsx-a11y": "^6.0.3",
+    "eslint-plugin-react": "^7.7.0",
+    "lerna": "^3.4.3"
+  },
+  "engines": {
+    "node": ">=8"
+  },
+  "prettier": {
+    "useTabs": false,
+    "bracketSpacing": true,
+    "tabWidth": 1,
+    "printWidth": 100,
+    "singleQuote": true,
+    "trailingComma": "all",
+    "jsxBracketSameLine": false,
+    "parser": "babylon",
+    "semi": true
+  },
+  "tags": [
+    "kubernetes",
+    "queue"
+  ]
+}

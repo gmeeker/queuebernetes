@@ -3,7 +3,12 @@ const { promisify } = require('util');
 
 class Queue extends mongoDbQueue {
   constructor(db, name, options) {
-    super(db, name, options);
+    let o = options;
+    if (o && typeof o.deadQueue === 'string') {
+      const deadQueue = mongoDbQueue(db, o.deadQueue);
+      o = Object.assign({}, o, { deadQueue });
+    }
+    super(db, name, o);
     this.add = promisify(this.add);
     this.get = promisify(this.get);
     this.ack = promisify(this.ack);

@@ -65,6 +65,17 @@ class EngineMongoDB {
   createQueue(settings) {
     return new Queue(this.db, settings.name, settings.options);
   }
+
+  // Define this to avoid a polling based design
+  // runController(controller) {
+  // }
+  //
+  // Define this to avoid a polling based design
+  // runWorker(controller) {
+  // }
+  //
+  // createMessage(queue, msg, ping) {
+  // }
 }
 
 module.exports = { EngineMongoDB };

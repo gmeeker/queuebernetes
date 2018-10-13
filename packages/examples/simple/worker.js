@@ -17,10 +17,10 @@ const start = async () => {
   const options = { exit: false, verbose: 9, createIndexes: true };
   const worker = new Worker(new EngineMongoDB(db), [{ name: 'simple-queue' }], options);
   worker.setLogging(msg => log.write(msg));
-  worker.addHandler(async (queue, msg, poll) => {
+  worker.addHandler(async msg => {
     for (let i = 0; i < 100; i++) {
       console.log(`Running task: ${i}`);
-      poll();
+      msg.ping();
       await new Promise(resolve => {
         setTimeout(resolve, 1000);
       });

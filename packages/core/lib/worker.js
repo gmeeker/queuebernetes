@@ -1,4 +1,37 @@
 /*
+ * Wrapper around message payload and queue ping() and ack() methods.
+ * It also tracks ack() so we can call it multiple times, in the handler
+ * and after success.
+ * The engine can provide a different implementation.
+ */
+class Message {
+  constructor(queue, message, ping) {
+    this.queue = queue;
+    this.message = message;
+    this.ping = ping;
+    this.ackd = false;
+  }
+
+  ack() {
+    if (!this.ackd) {
+      this.ackd = true;
+      // Don't ping anymore
+      this.ping = () => null;
+      return this.queue.ack(this.message.ack);
+    }
+    return Promise.resolve();
+  }
+
+  payload() {
+    return this.message.payload;
+  }
+
+  add(...args) {
+    this.queue.add(...args);
+  }
+}
+
+/*
  * Worker listens to one or more queues and dispatches tasks to handler functions.
  * In the simplest case, this can be run in a Deployment, which one or more replicas.
  * If the tasks require more resources and scaling to zero instances is desirable,
@@ -62,7 +95,8 @@ class Worker {
 
   dispatch(q, msg) {
     this.emit('task', q.name, msg);
-    const poller = () => {
+    const pinger = () => {
+      this.emit('ping', new Date());
       return q.ping(msg.ack).catch(err => {
         this.fatal = true;
         this.emit('error', err, q.name, msg.payload);
@@ -70,13 +104,18 @@ class Worker {
     };
     for (let i = 0; i < this.handlers.length; i++) {
       const handler = this.handlers[i];
-      const promise = handler(q, msg, poller);
+      let create = this.engine.createMessage;
+      if (!create) {
+        create = (...args) => new Message(...args);
+      }
+      const m = create(q, msg, pinger);
+      const promise = handler(m);
       if (promise) {
         const task = promise
           .then(result => {
             this.removeTask(msg.id);
             this.emit('success', q.name, msg, result);
-            return q.ack(msg.ack);
+            return m.ack();
           })
           .catch(err => {
             this.removeTask(msg.id);
@@ -119,7 +158,6 @@ class Worker {
     if (this.fatal || !(this.tasks.length > 0 || gotMsgIn || this.keepAlive())) {
       return null;
     }
-    this.emit('ping', new Date());
     let gotMsg = false;
     for (let i = 0; i < this.queues.length && this.tasks.length < this.options.maxTasks; i++) {
       const q = this.queues[i];
@@ -133,7 +171,7 @@ class Worker {
       if (msg) {
         this.lastPoll = Date.now();
         gotMsg = true;
-        this.dispatch(q, msg).then(() => msg.id);
+        this.dispatch(q, msg);
       }
     }
     const promises = this.tasks.map(task => task.task);
@@ -159,7 +197,11 @@ class Worker {
     this.lastPoll = Date.now();
     this.fatal = false;
     this.running = true;
-    await this.runOnce(true);
+    if (this.engine.runWorker) {
+      await this.engine.runWorker(this);
+    } else {
+      await this.runOnce(true);
+    }
     this.emit('end');
     this.running = false;
   }

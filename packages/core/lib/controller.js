@@ -19,7 +19,7 @@ class Controller {
       verbose: 5,
       ...ctrlOptions,
     };
-    this.options *= 1000;
+    this.options.timeout *= 1000;
     for (let i = 0; i < workers.length; i++) {
       const worker = workers[i];
       const o = worker.options || {};
@@ -210,7 +210,7 @@ class Controller {
     this.client = new Client({ config: config.getInCluster() });
     await this.client.loadSpec();
     this.emit('start');
-    this.engine.start(this, Object.values(this.queuesMap), this.workers, this.options);
+    this.engine.start(this, Object.values(this.queueMap), this.workers, this.options);
     this.lastCreate = {};
     if (this.engine.runController) {
       await this.engine.runController(this);

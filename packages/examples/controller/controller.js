@@ -3,7 +3,7 @@ const bodyParser = require('body-parser');
 const mongodb = require('mongodb');
 const { Controller } = require('@queuebernetes/core');
 const { EngineMongoDB } = require('@queuebernetes/mongodb');
-const Logging = require('@google-cloud/logging');
+const { Logging } = require('@google-cloud/logging');
 const manifest = require('./resources/job.json');
 /* or use yaml:
 const yaml = require('js-yaml');

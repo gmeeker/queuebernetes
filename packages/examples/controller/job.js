@@ -2,7 +2,7 @@ const express = require('express');
 const mongodb = require('mongodb');
 const { Worker } = require('@queuebernetes/core');
 const { EngineMongoDB } = require('@queuebernetes/mongodb');
-const Logging = require('@google-cloud/logging');
+const { Logging } = require('@google-cloud/logging');
 
 /* eslint-disable no-await-in-loop */
 

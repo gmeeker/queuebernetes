@@ -48,7 +48,7 @@ class EngineMongoDB {
         }
       }
       if (workers.find(w => w.options.clean)) {
-        this.cleanWorkers(emitter, queues);
+        this.cleanWorkers(emitter, workers);
       }
     } else {
       if (options.createIndexes) {

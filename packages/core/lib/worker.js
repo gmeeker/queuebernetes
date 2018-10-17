@@ -108,13 +108,18 @@ class Worker {
         this.emit('error', err, q.name, msg.payload);
       });
     };
+    let create = this.engine.createMessage;
+    if (!create) {
+      create = (...args) => new Message(...args);
+    }
+    const m = create(q, msg, pinger);
+    if (m.payload().reserved) {
+      this.emit('success', q.name, msg, null);
+      m.ack();
+      return null;
+    }
     for (let i = 0; i < this.handlers.length; i++) {
       const handler = this.handlers[i];
-      let create = this.engine.createMessage;
-      if (!create) {
-        create = (...args) => new Message(...args);
-      }
-      const m = create(q, msg, pinger);
       const promise = handler(m);
       if (promise) {
         const task = promise

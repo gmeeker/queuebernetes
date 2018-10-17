@@ -69,7 +69,7 @@ This is the 'master' that creates Kubernetes Jobs.  It takes a list of queue nam
 const con = process.env.MONGODB || 'mongodb://localhost:27017/test';
 const db = await promisify(mongodb.MongoClient.connect)(con, { useNewUrlParser: true });
 const options = {
-  minReplicas: 1,
+  minReplicas: 0,
   maxReplicas: 3,
   maxTasks: 1,
   namespace: process.env.POD_NAMESPACE,
@@ -99,8 +99,9 @@ Default: `5`
 Time in seconds to sleep between polling the database.
 
 #### minReplicas ####
-Default: `1`
-Minimum numbers of worker Jobs.
+Default: `0`
+Minimum numbers of worker Jobs.  The workers are designed to exit, or scale to 0.  To keep workers running, empty messages
+will be periodically added to the queue.  This can be forced temporarily with ```controller.wakeup(minReplicas)```
 
 #### maxReplicas ####
 Default: `1`

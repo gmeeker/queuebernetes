@@ -20,7 +20,7 @@ const start = async () => {
   const client = await mongodb.MongoClient.connect(con, { useNewUrlParser: true });
   const db = await client.db();
   const options = {
-    minReplicas: Number(process.env.MIN_REPLICAS || 1),
+    minReplicas: Number(process.env.MIN_REPLICAS || 0),
     maxReplicas: Number(process.env.MAX_REPLICAS || 3),
     maxTasks: Number(process.env.MAX_TASKS || 1),
     namespace: process.env.POD_NAMESPACE,

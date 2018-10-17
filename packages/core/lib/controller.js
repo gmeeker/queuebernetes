@@ -29,8 +29,11 @@ class Controller {
       if (!o.selector) {
         throw new Error('Kubernetes selector not specified');
       }
-      if (o.minReplicas !== undefined && o.minReplicas < 1) {
-        throw new Error('minReplicas must be at least 1');
+      if (o.minReplicas !== undefined && o.minReplicas < 0) {
+        throw new Error('minReplicas must be at least 0');
+      }
+      if (o.maxReplicas !== undefined && o.maxReplicas < 1) {
+        throw new Error('maxReplicas must be at least 1');
       }
       if (!worker.queues || worker.queues.length === 0) {
         throw new Error('No queues specified');
@@ -38,7 +41,8 @@ class Controller {
       const desiredReplicas = (tasks, options) => tasks / options.maxTasks;
       const deleteReplica = (job, controller, options) => options.deleteJobs;
       const options = {
-        minReplicas: 1,
+        wakeupMessage: { type: 'wakeup', reserved: true },
+        minReplicas: 0,
         maxReplicas: 1,
         maxTasks: 1,
         namespace: 'default',
@@ -65,6 +69,7 @@ class Controller {
     }
     this.events = {};
     this.jobs = {};
+    this.watchStreams = {};
     this.pendingDeletion = {};
   }
 
@@ -96,9 +101,20 @@ class Controller {
     const { namespace, selector } = worker.options;
     if (!this.jobs[selector]) {
       this.jobs[selector] = {};
-      const stream = this.client.apis.batch.v1.watch.namespaces(namespace).jobs.getStream();
+    }
+    if (!this.watchStreams[selector]) {
+      const stream = this.client.apis.batch.v1.watch.namespaces(namespace).jobs.getStream({
+        qs: {
+          labelSelector: selector
+        }
+      });
+      this.watchStreams[selector] = stream;
       const jsonStream = new JSONStream();
       stream.pipe(jsonStream);
+      jsonStream.on('end', () => {
+        // k8s ended the stream.  Restart next time.
+        this.watchStreams[selector] = null;
+      });
       jsonStream.on('data', object => {
         const job = object.object;
         const { name } = job.metadata;
@@ -156,6 +172,7 @@ class Controller {
     this.on('start', () => { cb('controller started'); }, { verbose: 5 });
     this.on('end', () => { cb('controller ended'); }, { verbose: 5 });
     this.on('check', selector => { cb(`controller checking ${selector}`); }, { verbose: 9 });
+    this.on('wakeup', selector => { cb(`controller wakeup ${selector}`); }, { verbose: 7 });
     this.on('poll', queue => { cb(`controller polling ${queue}`); }, { verbose: 9 });
     this.on('success', (selector, job, result) => { cb(`job success ${selector} ${JSON.stringify(job)} >> ${result}`); }, { verbose: 5 });
     this.on('failure', (selector, job, failure) => { cb(`job failure ${selector} ${JSON.stringify(job)} >> ${failure}`); }, { verbose: 1 });
@@ -165,6 +182,48 @@ class Controller {
     this.on('delete', (job, options) => { cb(`controller deleting job ${job.metadata.name} ${options.selector}`); }, { verbose: 5 });
   }
 
+  async wakeupWorker(minReplicas, worker, tasks) {
+    if (minReplicas > 0) {
+      const { selector } = worker.options;
+      this.emit('wakeup', selector);
+      const nextWakeup = (this.lastWakeup[selector] || 0) + worker.options.gracePeriod;
+      const required = (minReplicas * worker.options.maxTasks) - tasks;
+      if (Date.now() >= nextWakeup && required > 0) {
+        this.lastWakeup[selector] = Date.now();
+        for (let i = 0; i < required; i++) {
+          worker.queues[0].add(worker.options.wakeupMessage);
+        }
+      }
+    }
+    return null;
+  }
+
+  async wakeup(minReplicas) {
+    let expired = false;
+    for (let j = 0; j < this.workers.length; j++) {
+      const worker = this.workers[j];
+      const { selector } = worker.options;
+      const nextWakeup = (this.lastWakeup[selector] || 0) + worker.options.gracePeriod;
+      if (Date.now() >= nextWakeup) {
+        expired = true;
+        break;
+      }
+    }
+    if (expired) {
+      for (let j = 0; j < this.workers.length; j++) {
+        const worker = this.workers[j];
+        let tasks = 0;
+        for (let i = 0; i < worker.queues.length; i++) {
+          const q = worker.queues[i];
+          this.emit('poll', q.name);
+          tasks += await q.size() + await q.inFlight();
+        }
+        await this.wakeupWorker(minReplicas, worker, tasks);
+      }
+    }
+    return null;
+  }
+
   async check(worker, tasks) {
     const { selector } = worker.options;
     this.emit('check', selector);
@@ -172,10 +231,11 @@ class Controller {
     const replicas = jobs.reduce((total, job) => total + ((job.status && job.status.active) || 0), 0);
     const desired = worker.options.desiredReplicas(tasks, worker.options);
     const nextCreate = (this.lastCreate[selector] || 0) + worker.options.gracePeriod;
-    if (Date.now() >= nextCreate &&
-        ((replicas < worker.options.minReplicas && tasks > 0) ||
-         (replicas + 1 < worker.options.maxReplicas &&
-          replicas < Math.ceil(desired)))) {
+    await this.wakeupWorker(worker.options.minReplicas, worker, tasks);
+    if (Date.now() >= nextCreate
+        && (replicas < worker.options.minReplicas
+            || (replicas + 1 < worker.options.maxReplicas
+                && replicas < Math.ceil(desired)))) {
       this.lastCreate[selector] = Date.now();
       await this.create(worker, { replicas, desired, nextCreate: new Date(nextCreate) });
     }
@@ -219,6 +279,7 @@ class Controller {
     this.emit('start');
     this.engine.start(this, Object.values(this.queueMap), this.workers, this.options);
     this.lastCreate = {};
+    this.lastWakeup = {};
     if (this.engine.runController) {
       await this.engine.runController(this);
     } else {

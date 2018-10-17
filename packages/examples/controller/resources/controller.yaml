@@ -27,7 +27,7 @@ spec:
       labels:
         app: queuebernetes-controller
       annotations:
-        queuebernetes.io/minReplicas: "1"
+        queuebernetes.io/minReplicas: "0"
         queuebernetes.io/maxReplicas: "3"
         queuebernetes.io/maxTasks: "1"
         queuebernetes.io/timeout: "5"

@@ -4,23 +4,22 @@ metadata:
   name: queuebernetes-sa
 ---
 apiVersion: rbac.authorization.k8s.io/v1beta1
-kind: ClusterRole
+kind: Role
 metadata:
-  name: queuebernetes-cr
+  name: queuebernetes-role
 rules:
 - apiGroups: ["batch"]
   resources: ["cronjobs", "jobs"]
   verbs: ["create", "delete", "deletecollection", "get", "list", "patch", "update", "watch"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1beta1
-kind: ClusterRoleBinding
+kind: RoleBinding
 metadata:
   name: queuebernetes-rb
 subjects:
 - kind: ServiceAccount
   name: queuebernetes-sa
-  namespace: default
 roleRef:
-   kind: ClusterRole
-   name: queuebernetes-cr
-   apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: queuebernetes-role
+  apiGroup: rbac.authorization.k8s.io

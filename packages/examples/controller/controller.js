@@ -38,6 +38,17 @@ const start = async () => {
   };
   const controller = new Controller(new EngineMongoDB(db), workers, ctrlOptions);
   controller.setLogging(msg => log.write(msg));
+
+  // Optional code to get Kubernetes image from the current container and set the manifest.
+  // createClient() is only necessary to get controller.client in advance.
+  await controller.createClient();
+  const d = await controller.client.apis.apps.v1.namespaces(process.env.POD_NAMESPACE).deployments('queuebernetes-controller').get();
+  if (d && d.body) {
+    const { image } = d.body.spec.template.spec.containers[0];
+    console.log('Current image', image);
+    manifest.spec.template.spec.containers[0].image = image;
+  }
+
   controller.start().catch(err => console.error(err)).then(() => {
     console.log('Example app terminating...');
     process.exit(1);

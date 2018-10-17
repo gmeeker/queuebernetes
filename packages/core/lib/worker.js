@@ -5,18 +5,25 @@
  * The engine can provide a different implementation.
  */
 class Message {
-  constructor(queue, message, ping) {
+  constructor(queue, message, pinger) {
     this.queue = queue;
     this.message = message;
-    this.ping = ping;
+    this.pinger = pinger;
     this.ackd = false;
+  }
+
+  ping() {
+    if (!this.ackd) {
+      return this.pinger();
+    }
+    return Promise.resolve();
   }
 
   ack() {
     if (!this.ackd) {
       this.ackd = true;
       // Don't ping anymore
-      this.ping = () => null;
+      this.pinger = () => null;
       return this.queue.ack(this.message.ack);
     }
     return Promise.resolve();
@@ -98,7 +105,6 @@ class Worker {
     const pinger = () => {
       this.emit('ping', new Date());
       return q.ping(msg.ack).catch(err => {
-        this.fatal = true;
         this.emit('error', err, q.name, msg.payload);
       });
     };

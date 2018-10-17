@@ -1,7 +1,7 @@
 {
   "name": "@queuebernetes/pubsub",
   "description": "MongoDB pub/sub with a stream-like interface.",
-  "version": "0.0.4",
+  "version": "0.0.5",
   "author": "Garrick Meeker",
   "main": "lib/index.js",
   "license": "MIT",

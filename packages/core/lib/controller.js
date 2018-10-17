@@ -48,6 +48,7 @@ class Controller {
         deleteJobs: true,
         desiredReplicas,
         deleteReplica,
+        ...o,
       };
       options.gracePeriod *= 1000;
       this.workers.push({
@@ -59,7 +60,6 @@ class Controller {
           this.queueMap[q.name] = queue;
           return queue;
         }),
-        manifest: worker.manifest,
         options,
       });
     }
@@ -203,12 +203,19 @@ class Controller {
     return this.runOnce();
   }
 
+  createClient() {
+    if (!this.client) {
+      this.client = new Client({ config: config.getInCluster() });
+      return this.client.loadSpec();
+    }
+    return Promise.resolve(null);
+  }
+
   async start() {
     if (this.workers.length === 0) {
       return;
     }
-    this.client = new Client({ config: config.getInCluster() });
-    await this.client.loadSpec();
+    await this.createClient();
     this.emit('start');
     this.engine.start(this, Object.values(this.queueMap), this.workers, this.options);
     this.lastCreate = {};

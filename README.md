@@ -178,7 +178,7 @@ Clone queuebernetes.  Run ```lerna bootstrap``` and cd into packages/examples.  
 
 Build:
 ```
-docker build -t queuebernetes-examples:latest -t us.gcr.io/$GCLOUD_PROJECT/queuebernetes-examples:latest .
+docker build -f ./Dockerfile -t queuebernetes-examples:latest -t us.gcr.io/$GCLOUD_PROJECT/queuebernetes-examples:latest ../..
 docker push us.gcr.io/$GCLOUD_PROJECT/queuebernetes-examples:latest
 kubectl delete deploy queuebernetes-simple
 kubectl apply -f simple/resources/worker.yaml

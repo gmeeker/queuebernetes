@@ -1,7 +1,7 @@
 {
   "name": "queuebernetes",
   "description": "Long running job queue for Kubernetes",
-  "version": "0.0.6",
+  "version": "0.0.7",
   "author": "Garrick Meeker",
   "main": "index.js",
   "license": "MIT",

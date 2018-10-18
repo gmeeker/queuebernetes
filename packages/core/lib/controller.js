@@ -39,7 +39,7 @@ class Controller {
         throw new Error('No queues specified');
       }
       const desiredReplicas = (tasks, options) => tasks / options.maxTasks;
-      const deleteReplica = (job, controller, options) => options.deleteJobs;
+      const deleteReplica = (job, controller, options) => options.deleteJobs && !job.status.failed;
       const getMinReplicas = minReplicas => minReplicas;
       const getMaxReplicas = maxReplicas => maxReplicas;
       const options = {

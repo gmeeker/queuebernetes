@@ -80,7 +80,7 @@ const options = {
   manifest,
   selector: 'app=queuebernetes-controller',
   desiredReplicas: (tasks, options) => tasks / options.maxTasks,
-  deleteReplica: (job, controller, options) => options.deleteJobs,
+  deleteReplica: (job, controller, options) => options.deleteJobs && !job.status.failed,
   getMinReplicas: minReplicas => minReplicas,
   getMaxReplicas: maxReplicas => maxReplicas,
 };
@@ -152,12 +152,12 @@ Default:
 ```
 
 #### deleteReplica ###
-Detailed control of when to delete containers,
-e.g. only delete successful Job containers.
+Detailed control of when to delete completed containers,
+e.g. only even failed Jobs.  The default deletes only successful ones.
 `job` is a Kubernetes manifest.  In particular `job.status` is useful.
 Default:
 ```
-(job, controller, options) => options.deleteJobs
+(job, controller, options) => options.deleteJobs && !job.status.failed
 ```
 
 #### getMinReplicas ###

@@ -10,6 +10,11 @@ class Message {
     this.message = message;
     this.pinger = pinger;
     this.ackd = false;
+
+    this.ping = this.ping.bind(this);
+    this.ack = this.ack.bind(this);
+    this.payload = this.payload.bind(this);
+    this.add = this.add.bind(this);
   }
 
   ping() {

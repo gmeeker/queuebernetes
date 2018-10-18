@@ -40,8 +40,8 @@ class Controller {
       }
       const desiredReplicas = (tasks, options) => tasks / options.maxTasks;
       const deleteReplica = (job, controller, options) => options.deleteJobs;
-      const getMinReplicas = minReplicas => minReplicas,
-      const getMaxReplicas = maxReplicas => maxReplicas,
+      const getMinReplicas = minReplicas => minReplicas;
+      const getMaxReplicas = maxReplicas => maxReplicas;
       const options = {
         wakeupMessage: { type: 'wakeup', reserved: true },
         minReplicas: 0,
@@ -237,7 +237,7 @@ class Controller {
     const desired = options.desiredReplicas(tasks, options);
     const nextCreate = (this.lastCreate[selector] || 0) + options.gracePeriod;
     const minReplicas = options.getMinReplicas(options.minReplicas);
-    const minReplicas = options.getMinReplicas(options.minReplicas);
+    const maxReplicas = options.getMaxReplicas(options.maxReplicas);
     await this.wakeupWorker(options.getMinReplicas, worker, tasks);
     if (Date.now() >= nextCreate
         && ((replicas + 1 < maxReplicas && replicas < Math.ceil(desired))

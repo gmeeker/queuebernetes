@@ -40,6 +40,8 @@ class Controller {
       }
       const desiredReplicas = (tasks, options) => tasks / options.maxTasks;
       const deleteReplica = (job, controller, options) => options.deleteJobs;
+      const getMinReplicas = minReplicas => minReplicas,
+      const getMaxReplicas = maxReplicas => maxReplicas,
       const options = {
         wakeupMessage: { type: 'wakeup', reserved: true },
         minReplicas: 0,
@@ -52,6 +54,8 @@ class Controller {
         deleteJobs: true,
         desiredReplicas,
         deleteReplica,
+        getMinReplicas,
+        getMaxReplicas,
         ...o,
       };
       options.gracePeriod *= 1000;
@@ -225,17 +229,19 @@ class Controller {
   }
 
   async check(worker, tasks) {
-    const { selector } = worker.options;
+    const { options } = worker;
+    const { selector } = options;
     this.emit('check', selector);
     const jobs = Object.values(this.jobs[selector] || {});
     const replicas = jobs.reduce((total, job) => total + ((job.status && job.status.active) || 0), 0);
-    const desired = worker.options.desiredReplicas(tasks, worker.options);
-    const nextCreate = (this.lastCreate[selector] || 0) + worker.options.gracePeriod;
-    await this.wakeupWorker(worker.options.minReplicas, worker, tasks);
+    const desired = options.desiredReplicas(tasks, options);
+    const nextCreate = (this.lastCreate[selector] || 0) + options.gracePeriod;
+    const minReplicas = options.getMinReplicas(options.minReplicas);
+    const minReplicas = options.getMinReplicas(options.minReplicas);
+    await this.wakeupWorker(options.getMinReplicas, worker, tasks);
     if (Date.now() >= nextCreate
-        && (replicas < worker.options.minReplicas
-            || (replicas + 1 < worker.options.maxReplicas
-                && replicas < Math.ceil(desired)))) {
+        && ((replicas + 1 < maxReplicas && replicas < Math.ceil(desired))
+            || replicas < minReplicas)) {
       this.lastCreate[selector] = Date.now();
       await this.create(worker, { replicas, desired, nextCreate: new Date(nextCreate) });
     }

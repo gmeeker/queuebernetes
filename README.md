@@ -81,6 +81,8 @@ const options = {
   selector: 'app=queuebernetes-controller',
   desiredReplicas: (tasks, options) => tasks / options.maxTasks,
   deleteReplica: (job, controller, options) => options.deleteJobs,
+  getMinReplicas: minReplicas => minReplicas,
+  getMaxReplicas: maxReplicas => maxReplicas,
 };
 const workers = [{ queues: ['controller-queue'], options }];
 const ctrlOptions = {
@@ -156,6 +158,21 @@ e.g. only delete successful Job containers.
 Default:
 ```
 (job, controller, options) => options.deleteJobs
+```
+
+#### getMinReplicas ###
+Detailed control of minimum required containers,
+e.g. don't scale to zero during business hours.
+Default:
+```
+minReplicas => minReplicas
+```
+
+#### getMaxReplicas ###
+Detailed control of maximum required containers.
+Default:
+```
+maxReplicas => maxReplicas
 ```
 
 ## Optional ##

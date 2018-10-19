@@ -101,7 +101,7 @@ class Watcher {
         this.ends.push(cb);
         break;
       default:
-        break;
+        throw new Error(`Invalid argument to Watcher.on: ${what}`);
     }
     this.resolve = null;
     this.reject = null;

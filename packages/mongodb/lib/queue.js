@@ -5,28 +5,28 @@ function now() {
   return (new Date()).toISOString();
 }
 
-class Queue extends mongoDbQueue {
+class Queue {
   constructor(db, name, options) {
     let o = options;
     if (o && typeof o.deadQueue === 'string') {
       const deadQueue = mongoDbQueue(db, o.deadQueue);
       o = Object.assign({}, o, { deadQueue });
     }
-    super(db, name, o);
-    this.add = promisify(this.add);
-    this.get = promisify(this.get);
-    this.ack = promisify(this.ack);
-    this.ping = promisify(this.ping);
-    this.total = promisify(this.total);
-    this.size = promisify(this.size);
-    this.inFlight = promisify(this.inFlight);
-    this.done = promisify(this.done);
-    this.clean = promisify(this.clean);
-    this.createIndexes = promisify(this.createIndexes);
+    this.queue = mongoDbQueue(db, name, o);
+    this.add = promisify(this.queue.add.bind(this.queue));
+    this.get = promisify(this.queue.get.bind(this.queue));
+    this.ack = promisify(this.queue.ack.bind(this.queue));
+    this.ping = promisify(this.queue.ping.bind(this.queue));
+    this.clean = promisify(this.queue.clean.bind(this.queue));
+    this.createIndexes = promisify(this.queue.createIndexes.bind(this.queue));
+    this.total = promisify(this.total.bind(this));
+    this.size = promisify(this.size.bind(this));
+    this.inFlight = promisify(this.inFlight.bind(this));
+    this.done = promisify(this.done.bind(this));
   }
 
   newCount(query, callback) {
-    this.col.countDocuments(query, function (err, count) {
+    this.queue.col.countDocuments(query, function (err, count) {
       if (err) return callback(err);
       callback(null, count);
     });

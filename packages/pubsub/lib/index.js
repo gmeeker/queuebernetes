@@ -1,4 +1,5 @@
 const mubsub = require('mubsub-nbb');
+const util = require('util');
 const uuidv4 = require('uuid/v4');
 
 /**
@@ -222,15 +223,8 @@ class Publisher {
    * @api public
    */
   publish(message) {
-    return new Promise((resolve, reject) => {
-      try {
-        this.log(`publish ${this.collection} ${this.event} ${JSON.stringify(message)}`);
-        this.channel.publish(this.event, message, resolve);
-      } catch (err) {
-        console.error('ERROR: publish', err);
-        reject(err);
-      }
-    });
+    return util.promisify(this.channel.publish)(this.event, message)
+      .then(() => this.log(`publish ${this.collection} ${this.event} ${JSON.stringify(message)}`));
   }
 }
 

@@ -1,5 +1,6 @@
 const { Client, config } = require('kubernetes-client');
 const JSONStream = require('json-stream');
+const EventEmitter = require('events');
 
 /* eslint-disable no-await-in-loop */
 
@@ -9,9 +10,11 @@ const JSONStream = require('json-stream');
  * to zero replicas.  In this case, Worker must terminate.
  */
 
-class Controller {
+class Controller extends EventEmitter {
   constructor(engine, workers, ctrlOptions = {}) {
+    super();
     this.engine = engine;
+    this.engine.on('error', (...args) => this.emit('error', ...args));
     this.queueMap = {};
     this.workers = [];
     this.options = {
@@ -71,21 +74,9 @@ class Controller {
         options,
       });
     }
-    this.events = {};
     this.jobs = {};
     this.watchStreams = {};
     this.pendingDeletion = {};
-  }
-
-  on(event, cb, options) {
-    this.events[event] = { verbose: 1, ...options, cb };
-  }
-
-  emit(event, ...args) {
-    const e = this.events[event];
-    if (e && this.options.verbose >= e.verbose) {
-      e.cb(...args);
-    }
   }
 
   async pause(emit = false) {
@@ -172,18 +163,26 @@ class Controller {
       });
   }
 
+  ifVerbose(verbose, func) {
+    return (...args) => {
+      if (this.options.verbose >= verbose) {
+        func(...args);
+      }
+    };
+  }
+
   setLogging(cb) {
-    this.on('start', () => { cb('controller started'); }, { verbose: 5 });
-    this.on('end', () => { cb('controller ended'); }, { verbose: 5 });
-    this.on('check', selector => { cb(`controller checking ${selector}`); }, { verbose: 9 });
-    this.on('wakeup', selector => { cb(`controller wakeup ${selector}`); }, { verbose: 7 });
-    this.on('poll', queue => { cb(`controller polling ${queue}`); }, { verbose: 9 });
-    this.on('success', (selector, job, result) => { cb(`job success ${selector} ${JSON.stringify(job)} >> ${result}`); }, { verbose: 5 });
-    this.on('failure', (selector, job, failure) => { cb(`job failure ${selector} ${JSON.stringify(job)} >> ${failure}`); }, { verbose: 1 });
-    this.on('error', (error, queue, job) => { cb(`error ${queue} ${JSON.stringify(job)} >> ${error}`); });
-    this.on('pause', () => { cb('controller paused'); }, { verbose: 9 });
-    this.on('create', (options, status) => { cb(`controller creating job ${options.selector}: ${JSON.stringify(status)}`); }, { verbose: 5 });
-    this.on('delete', (job, options) => { cb(`controller deleting job ${job.metadata.name} ${options.selector}`); }, { verbose: 5 });
+    this.on('start', this.ifVerbose(5, () => { cb('controller started'); }));
+    this.on('end', this.ifVerbose(5, () => { cb('controller ended'); }));
+    this.on('check', this.ifVerbose(9, selector => { cb(`controller checking ${selector}`); }));
+    this.on('wakeup', this.ifVerbose(7, selector => { cb(`controller wakeup ${selector}`); }));
+    this.on('poll', this.ifVerbose(9, queue => { cb(`controller polling ${queue}`); }));
+    this.on('success', this.ifVerbose(1, (selector, job, result) => { cb(`job success ${selector} ${JSON.stringify(job)} >> ${result}`); }));
+    this.on('failure', this.ifVerbose(1, (selector, job, failure) => { cb(`job failure ${selector} ${JSON.stringify(job)} >> ${failure}`); }));
+    this.on('error', this.ifVerbose(1, (error, queue, job) => { cb(`error ${queue} ${JSON.stringify(job)} >> ${error}`); }));
+    this.on('pause', this.ifVerbose(9, () => { cb('controller paused'); }));
+    this.on('create', this.ifVerbose(5, (options, status) => { cb(`controller creating job ${options.selector}: ${JSON.stringify(status)}`); }));
+    this.on('delete', this.ifVerbose(5, (job, options) => { cb(`controller deleting job ${job.metadata.name} ${options.selector}`); }));
   }
 
   async wakeupWorker(minReplicas, worker, tasks) {
@@ -283,7 +282,7 @@ class Controller {
     }
     await this.createClient();
     this.emit('start');
-    this.engine.start(this, Object.values(this.queueMap), this.workers, this.options);
+    this.engine.start(Object.values(this.queueMap), this.workers, this.options);
     this.lastCreate = {};
     this.lastWakeup = {};
     if (this.engine.runController) {

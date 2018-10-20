@@ -1,3 +1,4 @@
+const EventEmitter = require('events');
 const mubsub = require('mubsub-nbb');
 const util = require('util');
 const uuidv4 = require('uuid/v4');
@@ -16,7 +17,7 @@ const uuidv4 = require('uuid/v4');
 /**
  * Helper for watching pub/sub messages.
 */
-class Watcher {
+class Watcher extends EventEmitter {
   /**
    * Watch constructor
    *
@@ -25,6 +26,7 @@ class Watcher {
    *   - `merge` merge data from message or overwrite, default is true
    */
   constructor(watch, query, options = {}) {
+    super();
     this.watch = watch;
     this.collection = watch.collection;
     this.event = watch.event;
@@ -33,9 +35,6 @@ class Watcher {
     this.id = uuidv4();
     this.data = {};
     this.initialize = [];
-    this.events = [];
-    this.errors = [];
-    this.ends = [];
     this.timer = setTimeout(() => console.error('Watcher run() or wait() must be called'), 1000);
   }
 
@@ -67,7 +66,7 @@ class Watcher {
    * @api public
    */
   end() {
-    this.ends.forEach(cb => cb(this.data));
+    this.emit('end', this.data);
     this.watch.end(this);
     this.watch = null;
   }
@@ -80,32 +79,6 @@ class Watcher {
    */
   set(cb) {
     this.initialize.push(cb);
-    return this;
-  }
-
-  /**
-   * On message or error event.
-   *
-   * @param {String} [what] 'message' or 'error' or 'end'
-   * @param {Function} [cb] Callback
-   * @api public
-   */
-  on(what, cb) {
-    switch (what) {
-      case 'message':
-        this.events.push(cb);
-        break;
-      case 'error':
-        this.errors.push(cb);
-        break;
-      case 'end':
-        this.ends.push(cb);
-        break;
-      default:
-        throw new Error(`Invalid argument to Watcher.on: ${what}`);
-    }
-    this.resolve = null;
-    this.reject = null;
     return this;
   }
 
@@ -158,7 +131,7 @@ class Watcher {
       this.data = data;
     }
     try {
-      this.events.forEach(cb => cb(this.data));
+      this.emit('message', this.data);
       if (this.test && this.test(this.data)) {
         if (this.resolve) {
           this.resolve(this.data);
@@ -167,7 +140,7 @@ class Watcher {
       }
     } catch (err) {
       this.log(`ERROR subscribe ${this.collection} ${this.event} ${err.toString()}`);
-      this.errors.forEach(cb => cb(err));
+      this.emit('error', err);
       if (this.reject) {
         this.reject(err);
       }

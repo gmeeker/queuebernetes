@@ -1,3 +1,5 @@
+const EventEmitter = require('events');
+
 /*
  * Wrapper around message payload and queue ping() and ack() methods.
  * It also tracks ack() so we can call it multiple times, in the handler
@@ -51,13 +53,14 @@ class Message {
  * see WorkerSet to run Worker as a k8s Job.
  */
 
-class Worker {
+class Worker extends EventEmitter {
   constructor(engine, queues, options = {}) {
+    super();
     this.engine = engine;
+    this.engine.on('error', (...args) => this.emit('error', ...args));
     this.queues = queues.map(q => this.engine.createQueue(q));
     this.queueMap = {};
     queues.forEach((q, i) => this.queueMap[q.name] = this.queues[i]);
-    this.events = {};
     this.handlers = [];
     this.tasks = [];
     this.lastPoll = null;
@@ -75,30 +78,26 @@ class Worker {
     };
     this.options.timeout *= 1000;
     this.options.keepAlive *= 1000;
-    this.interval = null;
   }
 
-  on(event, cb, options) {
-    this.events[event] = { verbose: 1, ...options, cb };
-  }
-
-  emit(event, ...args) {
-    const e = this.events[event];
-    if (e && this.options.verbose >= e.verbose) {
-      e.cb(...args);
-    }
+  ifVerbose(verbose, func) {
+    return (...args) => {
+      if (this.options.verbose >= verbose) {
+        func(...args);
+      }
+    };
   }
 
   setLogging(cb) {
-    this.on('start', () => { cb('worker started'); }, { verbose: 5 });
-    this.on('end', () => { cb('worker ended'); }, { verbose: 5 });
-    this.on('poll', queue => { cb(`worker polling ${queue}`); }, { verbose: 9 });
-    this.on('ping', time => { cb(`worker ping at ${time}`); }, { verbose: 9 });
-    this.on('task', (queue, task) => { cb(`working task ${queue} ${JSON.stringify(task)}`); }, { verbose: 5 });
-    this.on('success', (queue, task, result) => { cb(`task success ${queue} ${JSON.stringify(task)} >> ${result}`); }, { verbose: 5 });
-    this.on('failure', (queue, task, failure) => { cb(`task failure ${queue} ${JSON.stringify(task)} >> ${failure}`); }, { verbose: 1 });
-    this.on('error', (error, queue, task) => { cb(`error ${queue} ${JSON.stringify(task)} >> ${error}`); }, { verbose: 1 });
-    this.on('pause', () => { cb('worker paused'); }, { verbose: 9 });
+    this.on('start', this.ifVerbose(5, () => { cb('worker started'); }));
+    this.on('end', this.ifVerbose(5, () => { cb('worker ended'); }));
+    this.on('poll', this.ifVerbose(9, queue => { cb(`worker polling ${queue}`); }));
+    this.on('ping', this.ifVerbose(9, time => { cb(`worker ping at ${time}`); }));
+    this.on('task', this.ifVerbose(5, (queue, task) => { cb(`working task ${queue} ${JSON.stringify(task)}`); }));
+    this.on('success', this.ifVerbose(1, (queue, task, result) => { cb(`task success ${queue} ${JSON.stringify(task)} >> ${result}`); }));
+    this.on('failure', this.ifVerbose(1, (queue, task, failure) => { cb(`task failure ${queue} ${JSON.stringify(task)} >> ${failure}`); }));
+    this.on('error', this.ifVerbose(1, (error, queue, task) => { cb(`error ${queue} ${JSON.stringify(task)} >> ${error}`); }));
+    this.on('pause', this.ifVerbose(9, () => { cb('worker paused'); }));
   }
 
   addHandler(handler) {
@@ -209,7 +208,7 @@ class Worker {
       return;
     }
     this.emit('start');
-    this.engine.start(this, this.queues, null, this.options);
+    this.engine.start(this.queues, null, this.options);
     this.lastPoll = Date.now();
     this.fatal = false;
     this.running = true;

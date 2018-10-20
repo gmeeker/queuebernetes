@@ -1,26 +1,28 @@
+const EventEmitter = require('events');
 const { Queue } = require('./queue');
 
 /* eslint-disable no-await-in-loop */
 
-class EngineMongoDB {
+class EngineMongoDB extends EventEmitter {
   constructor(db) {
+    super();
     this.db = db;
   }
 
-  async clean(emitter, queues) {
+  async clean(queues) {
     for (let i = 0; i < queues.length; i++) {
       const q = queues[i];
       // eslint-disable-next-line no-await-in-loop
       await q.clean()
         .catch(error => {
-          emitter.emit('error', error.toString(), q.name);
+          this.emit('error', error.toString(), q.name);
         });
     }
     await new Promise(resolve => setTimeout(resolve, 60 * 60 * 1000));
-    return this.clean(emitter, queues);
+    return this.clean(queues);
   }
 
-  async cleanWorkers(emitter, workers) {
+  async cleanWorkers(workers) {
     for (let i = 0; i < workers.length; i++) {
       const worker = workers[i];
       if (worker.options.createIndexes) {
@@ -28,16 +30,16 @@ class EngineMongoDB {
           const q = worker.queues[j];
           await q.clean()
             .catch(error => {
-              emitter.emit('error', error.toString(), q.name);
+              this.emit('error', error.toString(), q.name);
             });
         }
       }
     }
     await new Promise(resolve => setTimeout(resolve, 60 * 60 * 1000));
-    return this.cleanWorkers(emitter, workers);
+    return this.cleanWorkers(workers);
   }
 
-  start(emitter, queues, workers, options) {
+  start(queues, workers, options) {
     if (workers) {
       for (let i = 0; i < workers.length; i++) {
         const worker = workers[i];
@@ -48,7 +50,7 @@ class EngineMongoDB {
         }
       }
       if (workers.find(w => w.options.clean)) {
-        this.cleanWorkers(emitter, workers);
+        this.cleanWorkers(workers);
       }
     } else {
       if (options.createIndexes) {
@@ -57,7 +59,7 @@ class EngineMongoDB {
         }
       }
       if (options.clean) {
-        this.clean(emitter, queues);
+        this.clean(queues);
       }
     }
   }

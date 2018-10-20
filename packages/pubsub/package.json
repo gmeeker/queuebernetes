@@ -1,6 +1,6 @@
 {
   "name": "@queuebernetes/pubsub",
-  "description": "MongoDB pub/sub with a stream-like interface.",
+  "description": "Redis pub/sub with a stream-like interface.",
   "version": "0.0.8",
   "author": "Garrick Meeker",
   "main": "lib/index.js",
@@ -13,14 +13,14 @@
     "access": "public"
   },
   "dependencies": {
-    "mubsub-nbb": "^1.5.0",
+    "redis-messaging-manager": "^1.5.0",
     "uuid": "^3.3.2"
   },
   "engines": {
     "node": ">=8"
   },
   "tags": [
-    "mongodb",
+    "redis",
     "pub/sub"
   ]
 }

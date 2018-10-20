@@ -1,12 +1,11 @@
 const EventEmitter = require('events');
-const mubsub = require('mubsub-nbb');
-const util = require('util');
+const { PubsubManager } = require('redis-messaging-manager');
 const uuidv4 = require('uuid/v4');
 
 /**
  * Example:
  * const { PubSub } = require('@queuebernetes/pubsub');
- * const pubsub = new PubSub('mongodb://localhost:27017/test', 'mongoCollection', 'eventName');
+ * const pubsub = new PubSub('localhost', 'channel');
  * pubsub.watch({ event: 'test', id: 'foo' })
  *   .set(() => { bar: 1 })
  *   .wait(msg => msg.bar === 10);
@@ -28,8 +27,7 @@ class Watcher extends EventEmitter {
   constructor(watch, query, options = {}) {
     super();
     this.watch = watch;
-    this.collection = watch.collection;
-    this.event = watch.event;
+    this.channel = watch.channel;
     this.query = query;
     this.options = Object.assign({}, { merge: true }, options);
     this.id = uuidv4();
@@ -123,7 +121,7 @@ class Watcher extends EventEmitter {
    * @api public
    */
   receive(data) {
-    this.log(`subscribe ${this.collection} ${this.event} ${JSON.stringify(data)}`);
+    this.log(`subscribe ${this.channel} ${JSON.stringify(data)}`);
     // Modify in place
     if (this.options.merge) {
       Object.assign(this.data, data);
@@ -139,7 +137,7 @@ class Watcher extends EventEmitter {
         this.end();
       }
     } catch (err) {
-      this.log(`ERROR subscribe ${this.collection} ${this.event} ${err.toString()}`);
+      this.log(`ERROR subscribe ${this.channel} ${err.toString()}`);
       this.emit('error', err);
       if (this.reject) {
         this.reject(err);
@@ -157,14 +155,12 @@ class Publisher {
    * Publisher constructor
    *
    * @param {Object} [options] Options
-   *   - `channel` mubsub channel
-   *   - `collection` collection name
-   *   - `event` event name
+   *   - `client` Messaging client
+   *   - `channel` channel name
    */
   constructor(options) {
+    this.client = options.client;
     this.channel = options.channel;
-    this.collection = options.collection;
-    this.event = options.event;
   }
 
   /**
@@ -196,38 +192,46 @@ class Publisher {
    * @api public
    */
   publish(message) {
-    return util.promisify(this.channel.publish)(this.event, message)
-      .then(() => this.log(`publish ${this.collection} ${this.event} ${JSON.stringify(message)}`));
+    const json = JSON.stringify(message);
+    return this.client.publish(this.channel, json)
+      .then(() => this.log(`publish ${this.channel} ${json}`));
   }
 }
 
 /**
- * Pub/sub messages without creating additional channels.  Create sparingly.
- * From Mubsub:
- * WARNING: You should not create lots of channels because Mubsub will poll from the cursor position.
+ * Pub/sub messages without creating additional consumers.
+ * This was useful for mubsub but maybe less of a concern for Redis.
  */
 class PubSub {
   /**
    * PubSub constructor
    *
-   * @param {String|Db} [mongo] uri string or Db instance
-   * @param {String} [collection] collection name
-   * @param {String} [event] channel name
-   * @param {Object} [options] mongo driver options
-   * @param {Object} [dbOptions] mongo driver options
+   * @param {String} [host] Redis hostname
+   * @param {String} [channel] channel name
+   * @param {Object} [options] Redis options
    * @api public
    */
-  constructor(mongo, collection, event, options, dbOptions) {
-    this.mongo = mongo;
-    this.collection = collection;
-    this.event = event;
+  constructor(host, channel, options = {}) {
+    this.host = host;
+    this.channel = channel;
     this.options = options;
     this.watchers = {};
     this.publishers = {};
     this.callback = this.callback.bind(this);
 
-    this.client = mubsub(mongo, dbOptions || { useNewUrlParser: true });
-    this.client.on('error', console.error);
+    this.client = new PubsubManager({ host, ...this.options });
+    this.client.getServerEventStream('error')
+      .subscribe(() => {
+        this.log('Got error event');
+      });
+    this.client.getServerEventStream('connect')
+      .subscribe(() => {
+        this.log('Got redis connect event');
+      });
+    this.client.getServerEventStream('reconnecting')
+      .subscribe(() => {
+        this.log('Got redis reconnecting event');
+      });
   }
 
   /**
@@ -258,7 +262,8 @@ class PubSub {
    * @param {Object} message
    * @api private
    */
-  callback(message) {
+  callback(messageString) {
+    const message = JSON.parse(messageString);
     const keys = Object.getOwnPropertyNames(this.watchers);
     keys.forEach(key => {
       const watcher = this.watchers[key];
@@ -292,7 +297,7 @@ class PubSub {
         this.subscription.unsubscribe();
         this.subscription = null;
       }
-      this.channel = null;
+      this.consumer = null;
     }
   }
 
@@ -306,12 +311,11 @@ class PubSub {
     const watcher = new Watcher(this, query, this.options);
     watcher.setLogging(this.writeLog);
     this.watchers[watcher.id] = watcher;
-    if (!this.channel) {
-      this.channel = this.client.channel(this.collection);
-      this.channel.on('error', console.error);
+    if (!this.consumer) {
+      this.consumer = this.client.consume(this.channel);
     }
     if (!this.subscription) {
-      this.subscription = this.channel.subscribe(this.event, this.callback);
+      this.subscription = this.consumer.subscribe(this.callback);
     }
     return watcher;
   }
@@ -322,12 +326,8 @@ class PubSub {
    * @api public
    */
   publisher() {
-    if (!this.channel) {
-      this.channel = this.client.channel(this.collection);
-      this.channel.on('error', console.error);
-    }
-    const { channel, collection, event } = this;
-    const publisher = new Publisher({ channel, collection, event });
+    const { client, channel } = this;
+    const publisher = new Publisher({ client, channel });
     publisher.setLogging(this.writeLog);
     return publisher;
   }

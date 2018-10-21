@@ -5,7 +5,7 @@ const uuidv4 = require('uuid/v4');
 /**
  * Example:
  * const { PubSub } = require('@queuebernetes/pubsub');
- * const pubsub = new PubSub('localhost', 'channel');
+ * const pubsub = new PubSub({ host: 'localhost' }, 'channel');
  * pubsub.watch({ event: 'test', id: 'foo' })
  *   .set(() => { bar: 1 })
  *   .wait(msg => msg.bar === 10);
@@ -22,6 +22,7 @@ class Watcher extends EventEmitter {
    *
    * @param {Watch} [watch] Watch instance
    * @param {Object} [query] Fields for filtering messages
+   * @param {Object} [options] Options for merging incoming data
    *   - `merge` merge data from message or overwrite, default is true
    */
   constructor(watch, query, options = {}) {
@@ -206,20 +207,18 @@ class PubSub {
   /**
    * PubSub constructor
    *
-   * @param {String} [host] Redis hostname
+   * @param {Object|String} [uri] Redis URI or object
    * @param {String} [channel] channel name
-   * @param {Object} [options] Redis options
    * @api public
    */
-  constructor(host, channel, options = {}) {
-    this.host = host;
+  constructor(uri, channel) {
+    this.uri = uri;
     this.channel = channel;
-    this.options = options;
     this.watchers = {};
     this.publishers = {};
     this.callback = this.callback.bind(this);
 
-    this.client = new PubsubManager({ host, ...this.options });
+    this.client = new PubsubManager(uri);
     this.client.getServerEventStream('error')
       .subscribe(() => {
         this.log('Got error event');
@@ -305,10 +304,12 @@ class PubSub {
    * Create a Watcher instance.
    *
    * @param {Object} [query] Fields for filtering messages
+   * @param {Object} [options] Options for merging incoming data
+   *   - `merge` merge data from message or overwrite, default is true
    * @api public
    */
-  watch(query) {
-    const watcher = new Watcher(this, query, this.options);
+  watch(query, options = {}) {
+    const watcher = new Watcher(this, query, options);
     watcher.setLogging(this.writeLog);
     this.watchers[watcher.id] = watcher;
     if (!this.consumer) {

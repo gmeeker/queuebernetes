@@ -1,7 +1,7 @@
 {
   "name": "@queuebernetes/pubsub",
   "description": "Redis pub/sub with a stream-like interface.",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "author": "Garrick Meeker",
   "main": "lib/index.js",
   "license": "MIT",

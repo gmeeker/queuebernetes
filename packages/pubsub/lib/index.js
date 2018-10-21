@@ -246,18 +246,18 @@ class PubSub {
     this.publishers = {};
     this.callback = this.callback.bind(this);
 
-    this.client = new PubsubManager(uri);
+    this.client = new PubsubManager(this.uri);
     this.client.getServerEventStream('error')
       .subscribe(() => {
-        this.log('Got error event');
+        this.log('Pubsub error event');
       });
     this.client.getServerEventStream('connect')
       .subscribe(() => {
-        this.log('Got redis connect event');
+        this.log('Pubsub redis connect event');
       });
     this.client.getServerEventStream('reconnecting')
       .subscribe(() => {
-        this.log('Got redis reconnecting event');
+        this.log('Pubsub redis reconnecting event');
       });
   }
 

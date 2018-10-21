@@ -1,5 +1,6 @@
 const EventEmitter = require('events');
 const { PubsubManager } = require('redis-messaging-manager');
+const { URL } = require('url');
 const uuidv4 = require('uuid/v4');
 
 /**
@@ -212,7 +213,34 @@ class PubSub {
    * @api public
    */
   constructor(uri, channel) {
-    this.uri = uri;
+    if (!uri) {
+      throw new Error('Redis URI is not specified');
+    } else if (typeof uri === 'object') {
+      this.uri = uri;
+    } else if (uri[0] === '/') {
+      // Local socket
+      this.uri = { path: uri };
+    } else {
+      // redis-messaging-manager doesn't support URI format like ioredis
+      const {
+        hostname, protocol, port, password, pathname
+      } = new URL(uri);
+      if (protocol !== 'redis:' || !hostname) {
+        throw new Error(`Invalid Redis URI ${uri}`);
+      }
+      this.uri = {
+        host: hostname,
+      };
+      if (port !== undefined) {
+        this.uri.port = port;
+      }
+      if (password !== undefined) {
+        this.uri.password = password;
+      }
+      if (pathname !== undefined) {
+        this.uri.db = pathname.slice(1);
+      }
+    }
     this.channel = channel;
     this.watchers = {};
     this.publishers = {};

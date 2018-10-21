@@ -237,7 +237,7 @@ class PubSub {
       if (password !== undefined) {
         this.uri.password = password;
       }
-      if (pathname !== undefined) {
+      if (pathname && pathname.length > 1) {
         this.uri.db = pathname.slice(1);
       }
     }

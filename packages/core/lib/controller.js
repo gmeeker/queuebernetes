@@ -201,11 +201,25 @@ class Controller extends EventEmitter {
     return null;
   }
 
-  async wakeup(minReplicas) {
+  /**
+   * Wake up a minimum number of workers
+   *
+   * @param {Number} [minReplicas] Required number of replicas
+   * @param {Object} [options] Options for affecting only some workers (default is all)
+   *   - `selector` Find worker by k8s label selector
+   *   - `worker` Worker object or index
+   *   - `queue` Find worker by queue name
+   */
+  async wakeup(minReplicas, options = {}) {
     let expired = false;
     for (let j = 0; j < this.workers.length; j++) {
       const worker = this.workers[j];
       const { selector } = worker.options;
+      if ((options.selector && options.selector !== selector)
+          || (options.worker && options.worker !== worker && options.worker !== j)
+          || (options.queue && !worker.queues.find(q => q.name === options.queue))) {
+        continue;
+      }
       const nextWakeup = (this.lastWakeup[selector] || 0) + worker.options.gracePeriod;
       if (Date.now() >= nextWakeup) {
         expired = true;
@@ -215,6 +229,12 @@ class Controller extends EventEmitter {
     if (expired) {
       for (let j = 0; j < this.workers.length; j++) {
         const worker = this.workers[j];
+        const { selector } = worker.options;
+        if ((options.selector && options.selector !== selector)
+            || (options.worker && options.worker !== worker && options.worker !== j)
+            || (options.queue && !worker.queues.find(q => q.name === options.queue))) {
+          continue;
+        }
         let tasks = 0;
         for (let i = 0; i < worker.queues.length; i++) {
           const q = worker.queues[i];

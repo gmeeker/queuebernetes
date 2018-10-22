@@ -13,6 +13,7 @@ class Queue {
       o = Object.assign({}, o, { deadQueue });
     }
     this.queue = mongoDbQueue(db, name, o);
+    this.name = name;
     this.add = promisify(this.queue.add.bind(this.queue));
     this.get = promisify(this.queue.get.bind(this.queue));
     this.ack = promisify(this.queue.ack.bind(this.queue));

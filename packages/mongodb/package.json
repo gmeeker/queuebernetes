@@ -1,7 +1,7 @@
 {
   "name": "@queuebernetes/mongodb",
   "description": "MongoDB support for long running job queue for Kubernetes",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "author": "Garrick Meeker",
   "main": "lib/index.js",
   "license": "MIT",

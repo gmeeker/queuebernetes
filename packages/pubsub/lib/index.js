@@ -31,6 +31,14 @@ class Watcher extends EventEmitter {
     this.watch = watch;
     this.channel = watch.channel;
     this.query = query;
+    const queries = Object.getOwnPropertyNames(query);
+    for (let i = 0; i < queries.length; i++) {
+      const key = queries[i];
+      const value = query[key];
+      if (typeof value !== 'string' && typeof value !== 'number') {
+        throw new Error(`Query values must be strings or numbers: found ${value}`);
+      }
+    }
     this.options = Object.assign({}, { merge: true }, options);
     this.id = uuidv4();
     this.data = {};
@@ -297,7 +305,8 @@ class PubSub {
       const { query } = watcher;
       const queries = Object.getOwnPropertyNames(query);
       for (let i = 0; i < queries.length; i++) {
-        if (query[i] !== message[i]) {
+        const q = queries[i];
+        if (query[q] !== message[q]) {
           return;
         }
       }

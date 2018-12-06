@@ -62,6 +62,7 @@ class Worker extends EventEmitter {
     this.queueMap = {};
     queues.forEach((q, i) => this.queueMap[q.name] = this.queues[i]);
     this.handlers = [];
+    this.reapers = [];
     this.tasks = [];
     this.lastPoll = null;
     this.fatal = false;
@@ -93,6 +94,7 @@ class Worker extends EventEmitter {
     this.on('end', this.ifVerbose(5, () => { cb('worker ended'); }));
     this.on('poll', this.ifVerbose(9, queue => { cb(`worker polling ${queue}`); }));
     this.on('ping', this.ifVerbose(9, time => { cb(`worker ping at ${time}`); }));
+    this.on('reap', this.ifVerbose(5, (queue, task) => { cb(`task died ${queue} ${JSON.stringify(task)}`); }));
     this.on('task', this.ifVerbose(5, (queue, task) => { cb(`working task ${queue} ${JSON.stringify(task)}`); }));
     this.on('success', this.ifVerbose(1, (queue, task, result) => { cb(`task success ${queue} ${JSON.stringify(task)} >> ${result}`); }));
     this.on('failure', this.ifVerbose(1, (queue, task, failure) => { cb(`task failure ${queue} ${JSON.stringify(task)} >> ${failure}`); }));
@@ -102,6 +104,22 @@ class Worker extends EventEmitter {
 
   addHandler(handler) {
     this.handlers.push(handler);
+  }
+
+  addReaper(reaper) {
+    this.reapers.push(reaper);
+  }
+
+  reap(q, msg) {
+    this.emit('reap', q.name, msg);
+    for (let i = 0; i < this.reapers.length; i++) {
+      const reaper = this.reapers[i];
+      const promise = reaper(msg);
+      if (promise) {
+        return promise;
+      }
+    }
+    return Promise.resolve(true);
   }
 
   dispatch(q, msg) {
@@ -184,6 +202,11 @@ class Worker extends EventEmitter {
         return null;
       });
       if (msg) {
+        if (q.isDead(msg)) {
+          if (this.reap(q, msg)) {
+            q.reap(msg);
+          }
+        }
         this.lastPoll = Date.now();
         gotMsg = true;
         this.dispatch(q, msg);

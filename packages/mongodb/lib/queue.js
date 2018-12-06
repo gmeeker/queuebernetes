@@ -12,6 +12,11 @@ class Queue {
       const deadQueue = mongoDbQueue(db, o.deadQueue);
       o = Object.assign({}, o, { deadQueue });
     }
+    if (o.deadQueue) {
+      this.deadQueue = o.deadQueue;
+      delete o.deadQueue;
+      this.maxRetries = o.maxRetries || 5;
+    }
     this.queue = mongoDbQueue(db, name, o);
     this.name = name;
     this.add = promisify(this.queue.add.bind(this.queue));
@@ -24,6 +29,22 @@ class Queue {
     this.size = promisify(this.size.bind(this));
     this.inFlight = promisify(this.inFlight.bind(this));
     this.done = promisify(this.done.bind(this));
+  }
+
+  isDead(msg) {
+    // if we have a deadQueue, then check the tries, else don't
+    return !!this.deadQueue && msg.tries > this.maxRetries;
+  }
+
+  reap(msg) {
+    if (this.isDead(msg)) {
+      // 1) add this message to the deadQueue
+      // 2) ack this message from the regular queue
+      return this.deadQueue.add(msg)
+        .then(() => {
+          return this.ack(msg.ack);
+        });
+    }
   }
 
   newCount(query, callback) {

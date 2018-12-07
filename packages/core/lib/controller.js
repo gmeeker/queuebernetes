@@ -51,7 +51,7 @@ class Controller extends EventEmitter {
         maxReplicas: 1,
         maxTasks: 1,
         namespace: 'default',
-        gracePeriod: 60,
+        gracePeriod: 120,
         clean: true,
         createIndexes: true,
         deleteJobs: true,

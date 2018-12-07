@@ -24,7 +24,7 @@ const start = async () => {
     maxReplicas: Number(process.env.MAX_REPLICAS || 3),
     maxTasks: Number(process.env.MAX_TASKS || 1),
     namespace: process.env.POD_NAMESPACE,
-    gracePeriod: Number(process.env.GRACE_PERIOD || 60),
+    gracePeriod: Number(process.env.GRACE_PERIOD || 120),
     clean: true,
     createIndexes: true,
     deleteJobs: true,

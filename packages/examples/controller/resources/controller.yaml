@@ -31,7 +31,7 @@ spec:
         queuebernetes.io/maxReplicas: "3"
         queuebernetes.io/maxTasks: "1"
         queuebernetes.io/timeout: "5"
-        queuebernetes.io/gracePeriod: "60"
+        queuebernetes.io/gracePeriod: "120"
     spec:
       serviceAccountName: queuebernetes-sa
       containers:

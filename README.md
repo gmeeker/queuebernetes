@@ -73,7 +73,7 @@ const options = {
   maxReplicas: 3,
   maxTasks: 1,
   namespace: process.env.POD_NAMESPACE,
-  gracePeriod: 60,
+  gracePeriod: 120,
   clean: true,
   createIndexes: true,
   deleteJobs: true,
@@ -118,7 +118,7 @@ Default: `default`
 Kubernetes namespace.
 
 #### gracePeriod ####
-Default: `60`
+Default: `120`
 Period between launching Jobs, to ease into heavy workloads.
 If this is too low, Controller may try to deploy again without an accurate container count.
 

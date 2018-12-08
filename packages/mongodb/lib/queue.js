@@ -40,11 +40,12 @@ class Queue {
     if (this.isDead(msg)) {
       // 1) add this message to the deadQueue
       // 2) ack this message from the regular queue
-      return this.deadQueue.add(msg)
+      return promisify(this.deadQueue.add.bind(this.deadQueue))(msg)
         .then(() => {
           return this.ack(msg.ack);
         });
     }
+    return Promise.resolve();
   }
 
   newCount(query, callback) {

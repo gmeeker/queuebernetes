@@ -196,17 +196,20 @@ class Worker extends EventEmitter {
       const q = this.queues[i];
       this.emit('poll', q.name);
       // eslint-disable-next-line no-await-in-loop
-      const msg = await q.get().catch(err => {
+      let msg = await q.get().catch(err => {
         this.fatal = true;
         this.emit('error', err, q.name, null);
         return null;
       });
       if (msg) {
         if (q.isDead(msg)) {
-          if (this.reap(q, msg)) {
+          if (await this.reap(q, msg)) {
             q.reap(msg);
+            msg = null;
           }
         }
+      }
+      if (msg) {
         this.lastPoll = Date.now();
         gotMsg = true;
         this.dispatch(q, msg);

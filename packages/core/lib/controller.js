@@ -71,6 +71,7 @@ class Controller extends EventEmitter {
           this.queueMap[q.name] = queue;
           return queue;
         }),
+        weights: worker.queues.map(q => q.weight || 1),
         options,
       });
     }
@@ -247,12 +248,17 @@ class Controller extends EventEmitter {
     return null;
   }
 
-  async check(worker, tasks) {
+  getReplicas(selector) {
+    const jobs = Object.values(this.jobs[selector] || {});
+    const replicas = jobs.reduce((total, job) => total + ((job.status && job.status.active) || 0), 0);
+    return replicas;
+  }
+
+  async check(worker, tasks, opts = {}) {
     const { options } = worker;
     const { selector } = options;
     this.emit('check', selector);
-    const jobs = Object.values(this.jobs[selector] || {});
-    const replicas = jobs.reduce((total, job) => total + ((job.status && job.status.active) || 0), 0);
+    const replicas = opts.replicas || this.getReplicas(selector);
     const desired = options.desiredReplicas(tasks, options);
     const nextCreate = (this.lastCreate[selector] || 0) + options.gracePeriod;
     const minReplicas = options.getMinReplicas(options);
@@ -267,6 +273,41 @@ class Controller extends EventEmitter {
     return null;
   }
 
+  async getQueueReplicas() {
+    const queueTasks = {};
+    // First get all queue sizes...
+    for (let j = 0; j < this.workers.length; j++) {
+      const worker = this.workers[j];
+      for (let i = 0; i < worker.queues.length; i++) {
+        const q = worker.queues[i];
+        if (!queueTasks[q.name]) {
+          const tasks = await q.size() + await q.inFlight();
+          queueTasks[q.name] = { tasks, replicas: 0 };
+        }
+      }
+    }
+    // Now push weighted replica counts to all queues...
+    for (let j = 0; j < this.workers.length; j++) {
+      const worker = this.workers[j];
+      const replicas = this.getReplicas(worker.options.selector);
+      if (replicas > 0) {
+        let total = 0; // normalizing factor
+        for (let i = 0; i < worker.queues.length; i++) {
+          const q = worker.queues[i];
+          total += queueTasks[q.name].tasks * worker.weights[i];
+        }
+        if (total > 0) {
+          for (let i = 0; i < worker.queues.length; i++) {
+            const q = worker.queues[i];
+            const queueWeight = queueTasks[q.name].tasks * worker.weights[i] / total;
+            queueTasks[q.name].replicas += replicas * queueWeight;
+          }
+        }
+      }
+    }
+    return queueTasks;
+  }
+
   async runOnce() {
     if (!this.isRunning()) {
       return null;
@@ -274,15 +315,21 @@ class Controller extends EventEmitter {
     for (let j = 0; j < this.workers.length; j++) {
       this.getJobs(this.workers[j]);
     }
+    // Get the weighted per-queue replica counts
+    // Only launch the first worker
+    const queueTasks = await this.getQueueReplicas();
     for (let j = 0; j < this.workers.length; j++) {
       const worker = this.workers[j];
-      let tasks = 0;
       for (let i = 0; i < worker.queues.length; i++) {
         const q = worker.queues[i];
-        this.emit('poll', q.name);
-        tasks += await q.size() + await q.inFlight();
+        if (!queueTasks[q.name].handled) {
+          queueTasks[q.name].handled = true;
+          this.emit('poll', q.name);
+          const tasks = await q.size() + await q.inFlight();
+          const { replicas } = queueTasks[q.name];
+          await this.check(worker, tasks, { replicas });
+        }
       }
-      await this.check(worker, tasks);
     }
     await this.pause();
     return this.runOnce();

@@ -12,7 +12,7 @@ class Queue {
       const deadQueue = mongoDbQueue(db, o.deadQueue);
       o = Object.assign({}, o, { deadQueue });
     }
-    if (o.deadQueue) {
+    if (o && o.deadQueue) {
       this.deadQueue = o.deadQueue;
       delete o.deadQueue;
       this.maxRetries = o.maxRetries || 5;

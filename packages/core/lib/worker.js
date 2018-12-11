@@ -79,6 +79,7 @@ class Worker extends EventEmitter {
     };
     this.options.timeout *= 1000;
     this.options.keepAlive *= 1000;
+    this.livenessQueue = options.livenessQueue ? this.engine.createQueue({ name: options.livenessQueue }) : null;
   }
 
   ifVerbose(verbose, func) {
@@ -187,6 +188,10 @@ class Worker extends EventEmitter {
     return this.running && !this.fatal;
   }
 
+  shutdown() {
+    this.fatal = true;
+  }
+
   async runOnce(gotMsgIn) {
     if (this.fatal || !(this.tasks.length > 0 || gotMsgIn || this.keepAlive())) {
       return null;
@@ -203,6 +208,7 @@ class Worker extends EventEmitter {
       });
       if (msg) {
         if (q.isDead(msg)) {
+          // eslint-disable-next-line no-await-in-loop
           if (await this.reap(q, msg)) {
             q.reap(msg);
             msg = null;
@@ -229,6 +235,42 @@ class Worker extends EventEmitter {
     return this.runOnce(gotMsg);
   }
 
+  sleep(milliseconds) {
+    return new Promise(resolve => setTimeout(resolve, milliseconds));
+  }
+
+  async runLivenessMessage(msg) {
+    try {
+      await this.livenessQueue.ping(msg.ack);
+    } catch (e) {
+      return this.runLiveness();
+    }
+    await this.sleep(30000);
+    return this.runLivenessMessage(msg);
+  }
+
+  async runLiveness() {
+    if (this.livenessQueue && !this.fatal) {
+      const msg = await this.livenessQueue.get();
+      if (msg) {
+        const { permanent, controller } = msg.payload;
+        // permanent workers don't exit for empty queues, just ack errors.
+        this.options.exit = !permanent;
+        // If controller changed then exit.
+        if (this.controller && this.controller !== controller) {
+          this.shutdown();
+          return;
+        }
+        this.controller = controller;
+        return this.runLivenessMessage(msg);
+      }
+      // Allow to timeout and exit...
+      this.options.exit = true;
+      await this.sleep(30000);
+      return this.runLiveness();
+    }
+  }
+
   async start() {
     if (this.queues.length === 0) {
       return;
@@ -238,6 +280,11 @@ class Worker extends EventEmitter {
     this.lastPoll = Date.now();
     this.fatal = false;
     this.running = true;
+    if (this.livenessQueue) {
+      this.runLiveness()
+        .catch(() => false)
+        .then(() => this.shutdown());
+    }
     if (this.engine.runWorker) {
       await this.engine.runWorker(this);
     } else {

@@ -15,6 +15,7 @@ class Controller extends EventEmitter {
     super();
     this.engine = engine;
     this.engine.on('error', (...args) => this.emit('error', ...args));
+    this.fatal = false;
     this.queueMap = {};
     this.workers = [];
     this.options = {
@@ -62,6 +63,11 @@ class Controller extends EventEmitter {
         ...o,
       };
       options.gracePeriod *= 1000;
+      const livenessQueue = o.livenessQueue ? this.engine.createQueue({ name: o.livenessQueue }) : null;
+      if (livenessQueue) {
+        livenessQueue.createIndexes();
+        livenessQueue.reset();
+      }
       this.workers.push({
         queues: worker.queues.map(q => {
           if (this.queueMap[q.name]) {
@@ -72,6 +78,8 @@ class Controller extends EventEmitter {
           return queue;
         }),
         weights: worker.queues.map(q => q.weight || 1),
+        livenessQueue,
+        permanentCount: 0,
         options,
       });
     }
@@ -90,7 +98,17 @@ class Controller extends EventEmitter {
   }
 
   isRunning() {
-    return true;
+    return !this.fatal;
+  }
+
+  shutdown() {
+    this.fatal = true;
+    for (let j = 0; j < this.workers.length; j++) {
+      const { livenessQueue } = this.workers[j];
+      if (livenessQueue) {
+        livenessQueue.reset();
+      }
+    }
   }
 
   getJobs(worker) {
@@ -156,7 +174,24 @@ class Controller extends EventEmitter {
 
   async create(worker, status) {
     const { manifest, namespace } = worker.options;
+    if (this.options.name) {
+      manifest.spec.template.metadata.annotations['queuebernetes.io/controller'] = this.options.name;
+    }
     this.emit('create', worker.options, status);
+    const { livenessQueue } = worker;
+    if (livenessQueue) {
+      const { replicas, minReplicas } = status;
+      const { name } = this.options.name;
+      const size = await livenessQueue.size() + await livenessQueue.inFlight();
+      if (replicas + 1 < size()) {
+        const permanent = worker.permanentCount < minReplicas;
+        if (permanent) {
+          worker.permanentCount++;
+        }
+        worker.livenessQueue.add({ type: 'worker', controller: name, permanent });
+        worker.livenessQueue.clean();
+      }
+    }
     return this.client.apis.batch.v1.namespaces(namespace).jobs.post({ body: manifest })
       .catch(error => {
         // Do NOT exit because Kubernetes will restart this container and we will create too soon.
@@ -189,10 +224,10 @@ class Controller extends EventEmitter {
   async wakeupWorker(minReplicas, worker, tasks) {
     if (minReplicas > 0) {
       const { selector } = worker.options;
-      this.emit('wakeup', selector);
       const nextWakeup = (this.lastWakeup[selector] || 0) + worker.options.gracePeriod;
       const required = (minReplicas * worker.options.maxTasks) - tasks;
       if (Date.now() >= nextWakeup && required > 0) {
+        this.emit('wakeup', selector);
         this.lastWakeup[selector] = Date.now();
         for (let i = 0; i < required; i++) {
           worker.queues[0].add(worker.options.wakeupMessage);
@@ -263,12 +298,18 @@ class Controller extends EventEmitter {
     const nextCreate = (this.lastCreate[selector] || 0) + options.gracePeriod;
     const minReplicas = options.getMinReplicas(options);
     const maxReplicas = options.getMaxReplicas(options);
-    await this.wakeupWorker(minReplicas, worker, tasks);
+    const permanent = replicas < minReplicas;
     if (Date.now() >= nextCreate
         && ((replicas + 1 < maxReplicas && replicas < Math.ceil(desired))
-            || replicas < minReplicas)) {
+            || permanent)) {
       this.lastCreate[selector] = Date.now();
-      await this.create(worker, { replicas, desired, nextCreate: new Date(nextCreate) });
+      await this.create(worker, {
+        replicas,
+        desired,
+        minReplicas,
+        maxReplicas,
+        nextCreate: new Date(nextCreate),
+      });
     }
     return null;
   }
@@ -349,6 +390,7 @@ class Controller extends EventEmitter {
     }
     await this.createClient();
     this.emit('start');
+    this.fatal = false;
     this.engine.start(Object.values(this.queueMap), this.workers, this.options);
     this.lastCreate = {};
     this.lastWakeup = {};

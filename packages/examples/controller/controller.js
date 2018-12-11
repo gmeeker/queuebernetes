@@ -1,9 +1,11 @@
-const express = require('express');
 const bodyParser = require('body-parser');
+const express = require('express');
+const http = require('http');
 const mongodb = require('mongodb');
 const { Controller } = require('@queuebernetes/core');
 const { EngineMongoDB } = require('@queuebernetes/mongodb');
 const { Logging } = require('@google-cloud/logging');
+const { createTerminus } = require('@godaddy/terminus');
 const manifest = require('./resources/job.json');
 /* or use yaml:
 const yaml = require('js-yaml');
@@ -30,14 +32,28 @@ const start = async () => {
     deleteJobs: true,
     manifest,
     selector: 'app=queuebernetes-controller',
+    livenessQueue: 'queuebernetes-controller',
   };
   const workers = [{ queues: [{ name: 'controller-queue' }], options }];
   const ctrlOptions = {
     timeout: Number(process.env.TIMEOUT || 5),
+    name: process.env.POD_NAME,
     verbose: 9,
   };
   const controller = new Controller(new EngineMongoDB(db), workers, ctrlOptions);
   controller.setLogging(msg => log.write(msg));
+
+  const onSignal = () => {
+    log.write('server is starting cleanup');
+    controller.shutdown();
+  };
+
+  const healthCheck = () => {
+    if (controller.isRunning()) {
+      return Promise.resolve('ok');
+    }
+    return Promise.reject(new Error('Controller is not running'));
+  };
 
   // Optional code to get Kubernetes image from the current container and set the manifest.
   // createClient() is only necessary to get controller.client in advance.
@@ -57,6 +73,9 @@ const start = async () => {
   const app = express();
   const jsonParser = bodyParser.json();
 
+  app.get('/', (req, res) => {
+    res.send('ok');
+  });
   app.get('/healthz', (req, res) => {
     if (controller.isRunning()) {
       res.send('ok');
@@ -88,8 +107,15 @@ const start = async () => {
     }
     res.status(500).send('Something broke');
   });
-
-  app.listen(3000, () => console.log('Example app listening on port 3000!'));
+  const server = http.createServer(app);
+  createTerminus(server, {
+    healthChecks: {
+      '/healthz': healthCheck
+    },
+    onSignal,
+    logger: log.write,
+  });
+  server.listen(3000, () => console.log('Example app listening on port 3000!'));
 };
 
 start().catch(err => console.error(err));

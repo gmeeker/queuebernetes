@@ -25,7 +25,7 @@ class EngineMongoDB extends EventEmitter {
   async cleanWorkers(workers) {
     for (let i = 0; i < workers.length; i++) {
       const worker = workers[i];
-      if (worker.options.createIndexes) {
+      if (worker.options.clean) {
         for (let j = 0; j < worker.queues.length; j++) {
           const q = worker.queues[j];
           await q.clean()

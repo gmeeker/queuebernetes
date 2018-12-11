@@ -48,6 +48,11 @@ class Queue {
     return Promise.resolve();
   }
 
+  reset() {
+    // delete ALL documents
+    return this.queue.col.deleteMany({});
+  }
+
   newCount(query, callback) {
     this.queue.col.countDocuments(query, function (err, count) {
       if (err) return callback(err);

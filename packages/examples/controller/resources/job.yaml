@@ -34,7 +34,7 @@ spec:
         readinessProbe:
           # an http probe
           httpGet:
-            path: /healthz
+            path: /
             port: 3000
           # length of time to wait for a pod to initialize
           # after pod startup, before accepting requests

@@ -1,8 +1,10 @@
 const express = require('express');
+const http = require('http');
 const mongodb = require('mongodb');
 const { Worker } = require('@queuebernetes/core');
 const { EngineMongoDB } = require('@queuebernetes/mongodb');
 const { Logging } = require('@google-cloud/logging');
+const { createTerminus } = require('@godaddy/terminus');
 
 /* eslint-disable no-await-in-loop */
 
@@ -19,6 +21,7 @@ const start = async () => {
     keepAlive: Number(process.env.KEEP_ALIVE || 5),
     clean: false,
     verbose: 9,
+    livenessQueue: 'queuebernetes-controller',
   };
   const queue = {
     name: 'controller-queue',
@@ -47,16 +50,31 @@ const start = async () => {
     process.exit(0);
   });
 
-  const app = express();
+  const onSignal = () => {
+    log.write('server is starting cleanup');
+    worker.shutdown();
+  };
 
-  app.get('/healthz', (req, res) => {
+  const healthCheck = () => {
     if (worker.isRunning()) {
-      res.send('ok');
-    } else {
-      res.status(500).send('Worker is not running');
+      return Promise.resolve('ok');
     }
+    return Promise.reject(new Error('Worker is not running'));
+  };
+
+  const app = express();
+  app.get('/', (req, res) => {
+    res.send('ok');
   });
-  app.listen(3000, () => console.log('Job worker listening on port 3000!'));
+  const server = http.createServer(app);
+  createTerminus(server, {
+    healthChecks: {
+      '/healthz': healthCheck
+    },
+    onSignal,
+    logger: log.write,
+  });
+  server.listen(3000, () => console.log('Job worker listening on port 3000!'));
 };
 
 start();

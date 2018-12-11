@@ -53,6 +53,10 @@ Call clean() on the queues (usually handled by Controller).
 Default: `false`
 Call createIndex on the queues (usually handled by Controller).
 
+#### livenessQueue ####
+Queue name to coordinate between the controller and the workers and allows the controller to shutdown workers.
+Optional, but required to support `minReplicas`.
+
 #### exit ####
 Default: `true`
 Set to `false` to keep running the when the queue is empty.  When running from a Job, set to `true`.
@@ -79,6 +83,7 @@ const options = {
   deleteJobs: true,
   manifest,
   selector: 'app=queuebernetes-controller',
+  livenessQueue: 'queuebernetes-controller',
   desiredReplicas: (tasks, options) => tasks / options.maxTasks,
   deleteReplica: (job, controller, options) => options.deleteJobs && !job.status.failed,
   getMinReplicas: options => options.minReplicas,
@@ -139,6 +144,10 @@ Kubernetes Job manifest.
 
 #### selector ####
 Kubernetes selector for Jobs.
+
+#### livenessQueue ####
+Queue name to coordinate between the controller and the workers and allows the controller to shutdown workers.
+Optional, but required to support `minReplicas`.
 
 #### verbose ####
 Default: `5`

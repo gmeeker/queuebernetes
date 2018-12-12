@@ -44,8 +44,8 @@ const start = async () => {
   controller.setLogging(msg => log.write(msg));
 
   const onSignal = () => {
-    log.write('server is starting cleanup');
     controller.shutdown();
+    log.write('server is starting cleanup');
   };
 
   const healthCheck = () => {

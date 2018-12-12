@@ -80,6 +80,7 @@ class Worker extends EventEmitter {
     this.options.timeout *= 1000;
     this.options.keepAlive *= 1000;
     this.livenessQueue = options.livenessQueue ? this.engine.createQueue({ name: options.livenessQueue }) : null;
+    this.livenessDelay = 10000;
   }
 
   ifVerbose(verbose, func) {
@@ -91,16 +92,21 @@ class Worker extends EventEmitter {
   }
 
   setLogging(cb) {
-    this.on('start', this.ifVerbose(5, () => { cb('worker started'); }));
-    this.on('end', this.ifVerbose(5, () => { cb('worker ended'); }));
-    this.on('poll', this.ifVerbose(9, queue => { cb(`worker polling ${queue}`); }));
-    this.on('ping', this.ifVerbose(9, time => { cb(`worker ping at ${time}`); }));
-    this.on('reap', this.ifVerbose(5, (queue, task) => { cb(`task died ${queue} ${JSON.stringify(task)}`); }));
-    this.on('task', this.ifVerbose(5, (queue, task) => { cb(`working task ${queue} ${JSON.stringify(task)}`); }));
-    this.on('success', this.ifVerbose(1, (queue, task, result) => { cb(`task success ${queue} ${JSON.stringify(task)} >> ${result}`); }));
-    this.on('failure', this.ifVerbose(1, (queue, task, failure) => { cb(`task failure ${queue} ${JSON.stringify(task)} >> ${failure}`); }));
-    this.on('error', this.ifVerbose(1, (error, queue, task) => { cb(`error ${queue} ${JSON.stringify(task)} >> ${error}`); }));
-    this.on('pause', this.ifVerbose(9, () => { cb('worker paused'); }));
+    this.on('start', this.ifVerbose(5, () => cb('worker started')));
+    this.on('end', this.ifVerbose(5, () => cb('worker ended')));
+    this.on('poll', this.ifVerbose(9, queue => cb(`worker polling ${queue}`)));
+    this.on('ping', this.ifVerbose(9, time => cb(`worker ping at ${time}`)));
+    this.on('reap', this.ifVerbose(5, (queue, task) => cb(`task died ${queue} ${JSON.stringify(task)}`)));
+    this.on('task', this.ifVerbose(5, (queue, task) => cb(`working task ${queue} ${JSON.stringify(task)}`)));
+    this.on('success', this.ifVerbose(1, (queue, task, result) => cb(`task success ${queue} ${JSON.stringify(task)} >> ${result}`)));
+    this.on('failure', this.ifVerbose(1, (queue, task, failure) => cb(`task failure ${queue} ${JSON.stringify(task)} >> ${failure}`)));
+    this.on('error', this.ifVerbose(1, (error, queue, task) => cb(`error ${queue} ${JSON.stringify(task)} >> ${error}`)));
+    this.on('pause', this.ifVerbose(9, () => cb('worker paused')));
+    this.on('liveness.start', this.ifVerbose(5, time => cb(`liveness started at ${time}`)));
+    this.on('liveness.end', this.ifVerbose(5, (time, failure) => cb(`liveness ended at ${time} >> ${failure}`)));
+    this.on('liveness.ping', this.ifVerbose(9, time => cb(`liveness ping at ${time}`)));
+    this.on('liveness.poll', this.ifVerbose(9, queue => cb(`liveness polling liveness ${queue}`)));
+    this.on('liveness.error', this.ifVerbose(1, (error, queue) => cb(`liveness error ${queue} >> ${error}`)));
   }
 
   addHandler(handler) {
@@ -167,9 +173,7 @@ class Worker extends EventEmitter {
     if (emit) {
       this.emit('pause');
     }
-    return new Promise(resolve => {
-      setTimeout(resolve, this.options.timeout);
-    });
+    return this.sleep(this.options.timeout).then(() => null);
   }
 
   addTask(task, id) {
@@ -224,6 +228,9 @@ class Worker extends EventEmitter {
     const promises = this.tasks.map(task => task.task);
     if (this.tasks.length < this.options.maxTasks) {
       promises.push(this.pause(this.tasks.length === 0));
+    } else {
+      // Keep updating this in case of long running tasks.
+      this.lastPoll = Date.now();
     }
     await Promise.race(promises).then(id => {
       // When a task finishes, restart 'keepAlive'
@@ -241,23 +248,27 @@ class Worker extends EventEmitter {
 
   async runLivenessMessage(msg) {
     try {
+      this.emit('liveness.ping', new Date());
       await this.livenessQueue.ping(msg.ack);
-    } catch (e) {
+    } catch (err) {
       return this.runLiveness();
     }
-    await this.sleep(30000);
+    await this.sleep(this.livenessDelay);
     return this.runLivenessMessage(msg);
   }
 
   async runLiveness() {
     if (this.livenessQueue && !this.fatal) {
+      this.emit('liveness.poll', this.livenessQueue.name);
       const msg = await this.livenessQueue.get();
       if (msg) {
+        this.emit('liveness.start', new Date());
         const { permanent, controller } = msg.payload;
         // permanent workers don't exit for empty queues, just ack errors.
         this.options.exit = !permanent;
         // If controller changed then exit.
         if (this.controller && this.controller !== controller) {
+          this.emit('liveness.error', `controller changed: ${controller}`);
           this.shutdown();
           return;
         }
@@ -266,7 +277,7 @@ class Worker extends EventEmitter {
       }
       // Allow to timeout and exit...
       this.options.exit = true;
-      await this.sleep(30000);
+      await this.sleep(this.livenessDelay);
       return this.runLiveness();
     }
   }
@@ -282,7 +293,9 @@ class Worker extends EventEmitter {
     this.running = true;
     if (this.livenessQueue) {
       this.runLiveness()
-        .catch(() => false)
+        .catch(err => {
+          this.emit('liveness.error', err, this.livenessQueue.name);
+        })
         .then(() => this.shutdown());
     }
     if (this.engine.runWorker) {

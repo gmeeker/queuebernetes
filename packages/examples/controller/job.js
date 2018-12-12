@@ -51,8 +51,8 @@ const start = async () => {
   });
 
   const onSignal = () => {
-    log.write('server is starting cleanup');
     worker.shutdown();
+    log.write('server is starting cleanup');
   };
 
   const healthCheck = () => {

@@ -63,11 +63,6 @@ class Controller extends EventEmitter {
         ...o,
       };
       options.gracePeriod *= 1000;
-      const livenessQueue = o.livenessQueue ? this.engine.createQueue({ name: o.livenessQueue }) : null;
-      if (livenessQueue) {
-        livenessQueue.createIndexes();
-        livenessQueue.reset();
-      }
       this.workers.push({
         queues: worker.queues.map(q => {
           if (this.queueMap[q.name]) {
@@ -78,7 +73,7 @@ class Controller extends EventEmitter {
           return queue;
         }),
         weights: worker.queues.map(q => q.weight || 1),
-        livenessQueue,
+        livenessQueue: o.livenessQueue ? this.engine.createQueue({ name: o.livenessQueue }) : null,
         permanentCount: 0,
         options,
       });
@@ -106,6 +101,7 @@ class Controller extends EventEmitter {
     for (let j = 0; j < this.workers.length; j++) {
       const { livenessQueue } = this.workers[j];
       if (livenessQueue) {
+        this.emit('liveness.reset', livenessQueue.name);
         livenessQueue.reset();
       }
     }
@@ -181,15 +177,17 @@ class Controller extends EventEmitter {
     const { livenessQueue } = worker;
     if (livenessQueue) {
       const { replicas, minReplicas } = status;
-      const { name } = this.options.name;
+      const { name } = this.options;
       const size = await livenessQueue.size() + await livenessQueue.inFlight();
-      if (replicas + 1 < size()) {
+      if (size < replicas + 1) {
         const permanent = worker.permanentCount < minReplicas;
         if (permanent) {
           worker.permanentCount++;
         }
-        worker.livenessQueue.add({ type: 'worker', controller: name, permanent });
-        worker.livenessQueue.clean();
+        const live = { type: 'worker', controller: name, permanent };
+        this.emit('liveness.create', livenessQueue.name, live);
+        livenessQueue.add(live);
+        livenessQueue.clean();
       }
     }
     return this.client.apis.batch.v1.namespaces(namespace).jobs.post({ body: manifest })
@@ -208,17 +206,19 @@ class Controller extends EventEmitter {
   }
 
   setLogging(cb) {
-    this.on('start', this.ifVerbose(5, () => { cb('controller started'); }));
-    this.on('end', this.ifVerbose(5, () => { cb('controller ended'); }));
-    this.on('check', this.ifVerbose(9, selector => { cb(`controller checking ${selector}`); }));
-    this.on('wakeup', this.ifVerbose(7, selector => { cb(`controller wakeup ${selector}`); }));
-    this.on('poll', this.ifVerbose(9, queue => { cb(`controller polling ${queue}`); }));
-    this.on('success', this.ifVerbose(1, (selector, job, result) => { cb(`job success ${selector} ${JSON.stringify(job)} >> ${result}`); }));
-    this.on('failure', this.ifVerbose(1, (selector, job, failure) => { cb(`job failure ${selector} ${JSON.stringify(job)} >> ${failure}`); }));
-    this.on('error', this.ifVerbose(1, (error, queue, job) => { cb(`error ${queue} ${JSON.stringify(job)} >> ${error}`); }));
-    this.on('pause', this.ifVerbose(9, () => { cb('controller paused'); }));
-    this.on('create', this.ifVerbose(5, (options, status) => { cb(`controller creating job ${options.selector}: ${JSON.stringify(status)}`); }));
-    this.on('delete', this.ifVerbose(5, (job, options) => { cb(`controller deleting job ${job.metadata.name} ${options.selector}`); }));
+    this.on('start', this.ifVerbose(5, () => cb('controller started')));
+    this.on('end', this.ifVerbose(5, () => cb('controller ended')));
+    this.on('check', this.ifVerbose(9, selector => cb(`controller checking ${selector}`)));
+    this.on('wakeup', this.ifVerbose(7, selector => cb(`controller wakeup ${selector}`)));
+    this.on('poll', this.ifVerbose(9, queue => cb(`controller polling ${queue}`)));
+    this.on('success', this.ifVerbose(1, (selector, job, result) => cb(`job success ${selector} ${JSON.stringify(job)} >> ${result}`)));
+    this.on('failure', this.ifVerbose(1, (selector, job, failure) => cb(`job failure ${selector} ${JSON.stringify(job)} >> ${failure}`)));
+    this.on('error', this.ifVerbose(1, (error, queue, job) => cb(`error ${queue} ${JSON.stringify(job)} >> ${error}`)));
+    this.on('pause', this.ifVerbose(9, () => cb('controller paused')));
+    this.on('create', this.ifVerbose(5, (options, status) => cb(`controller creating job ${options.selector}: ${JSON.stringify(status)}`)));
+    this.on('delete', this.ifVerbose(5, (job, options) => cb(`controller deleting job ${job.metadata.name} ${options.selector}`)));
+    this.on('liveness.create', this.ifVerbose(5, (q, status) => cb(`controller liveness task: ${q} ${JSON.stringify(status)}`)));
+    this.on('liveness.reset', this.ifVerbose(5, q => cb(`controller liveness reset: ${q}`)));
   }
 
   async wakeupWorker(minReplicas, worker, tasks) {
@@ -387,6 +387,14 @@ class Controller extends EventEmitter {
   async start() {
     if (this.workers.length === 0) {
       return;
+    }
+    for (let j = 0; j < this.workers.length; j++) {
+      const { livenessQueue } = this.workers[j];
+      if (livenessQueue) {
+        this.emit('liveness.reset', livenessQueue.name);
+        livenessQueue.createIndexes();
+        livenessQueue.reset();
+      }
     }
     await this.createClient();
     this.emit('start');

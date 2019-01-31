@@ -76,13 +76,6 @@ const start = async () => {
   app.get('/', (req, res) => {
     res.send('ok');
   });
-  app.get('/healthz', (req, res) => {
-    if (controller.isRunning()) {
-      res.send('ok');
-    } else {
-      res.status(500).send('Worker is not running');
-    }
-  });
   app.post('/create', jsonParser, (req, res) => {
     if (!req.body) {
       res.status(500).send('Invalid body');

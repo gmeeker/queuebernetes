@@ -22,6 +22,8 @@ spec:
   selector:
     matchLabels:
       app: queuebernetes-controller
+  strategy:
+    type: Recreate
   template:
     metadata:
       labels:

@@ -184,6 +184,17 @@ class Controller extends EventEmitter {
         if (permanent) {
           worker.permanentCount++;
         }
+        const msg = await this.livenessQueue.get();
+        if (msg) {
+          const { controller } = msg.payload;
+          if (controller !== name) {
+            // Is another controller running?
+            // Exit and we will clear the queue when restarted.
+            this.emit('error', `${controller} is still in the liveness queue`);
+            this.fatal = true;
+            throw new Error(`${controller} is still in the liveness queue`);
+          }
+        }
         const live = { type: 'worker', controller: name, permanent };
         this.emit('liveness.create', livenessQueue.name, live);
         livenessQueue.add(live);
@@ -192,7 +203,8 @@ class Controller extends EventEmitter {
     }
     return this.client.apis.batch.v1.namespaces(namespace).jobs.post({ body: manifest })
       .catch(error => {
-        // Do NOT exit because Kubernetes will restart this container and we will create too soon.
+        // Do NOT exit because Kubernetes will restart this container
+        // and we will create another job too soon.
         this.emit('error', error.toString());
       });
   }

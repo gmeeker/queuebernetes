@@ -188,7 +188,7 @@ class Controller extends EventEmitter {
         if (msg) {
           const { controller } = msg.payload;
           if (controller !== name) {
-            // Is another controller running?
+            // Is another controller running?  Use Strategy: Recreate!
             // Exit and we will clear the queue when restarted.
             this.emit('error', `${controller} is still in the liveness queue`);
             this.fatal = true;

@@ -184,7 +184,7 @@ class Controller extends EventEmitter {
         if (permanent) {
           worker.permanentCount++;
         }
-        const msg = await this.livenessQueue.get();
+        const msg = await livenessQueue.get();
         if (msg) {
           const { controller } = msg.payload;
           if (controller !== name) {

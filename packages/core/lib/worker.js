@@ -20,7 +20,7 @@ class Message {
   }
 
   ping() {
-    if (!this.ackd) {
+    if (!this.ackd && this.pinger) {
       return this.pinger();
     }
     return Promise.resolve();
@@ -30,7 +30,7 @@ class Message {
     if (!this.ackd) {
       this.ackd = true;
       // Don't ping anymore
-      this.pinger = () => null;
+      this.pinger = () => Promise.resolve();
       return this.queue.ack(this.message.ack);
     }
     return Promise.resolve();
@@ -135,6 +135,7 @@ class Worker extends EventEmitter {
       this.emit('ping', new Date());
       return q.ping(msg.ack).catch(err => {
         this.emit('error', err, q.name, msg.payload);
+        return Promise.reject(err);
       });
     };
     let create = this.engine.createMessage;

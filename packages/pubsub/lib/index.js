@@ -39,7 +39,7 @@ class Watcher extends EventEmitter {
         throw new Error(`Query values must be strings or numbers: found ${value}`);
       }
     }
-    this.options = Object.assign({}, { merge: true }, options);
+    this.options = { merge: true, ...options };
     this.id = uuidv4();
     this.data = {};
     this.initialize = [];

@@ -138,8 +138,8 @@ class Controller extends EventEmitter {
             case 'UPDATED':
             case 'MODIFIED':
               this.jobs[selector][name] = object.object;
-              if (!this.pendingDeletion[name] &&
-                  (job.status.completionTime !== undefined || job.status.failed)) {
+              if (!this.pendingDeletion[name]
+                  && (job.status.completionTime !== undefined || job.status.failed)) {
                 this.pendingDeletion[name] = true;
                 if (job.status.failed) {
                   this.emit('failure', selector, name, job.status);

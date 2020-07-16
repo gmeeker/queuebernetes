@@ -10,7 +10,7 @@ class Queue {
     let o = options;
     if (o && typeof o.deadQueue === 'string') {
       const deadQueue = mongoDbQueue(db, o.deadQueue);
-      o = Object.assign({}, o, { deadQueue });
+      o = { ...o, deadQueue };
     }
     if (o && o.deadQueue) {
       this.deadQueue = o.deadQueue;

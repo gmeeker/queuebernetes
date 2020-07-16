@@ -1,7 +1,7 @@
 {
   "name": "@queuebernetes/examples",
   "description": "Example usage of Queuebernetes",
-  "version": "0.1.10",
+  "version": "0.2.0",
   "author": "Garrick Meeker",
   "main": "lib/index.js",
   "license": "MIT",

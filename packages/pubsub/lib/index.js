@@ -1,7 +1,7 @@
 const EventEmitter = require('events');
 const { PubsubManager } = require('redis-messaging-manager');
 const { URL } = require('url');
-const uuidv4 = require('uuid/v4');
+const { v4: uuidv4 } = require('uuid');
 
 /**
  * Example:

@@ -1,4 +1,5 @@
-const { Client, config } = require('kubernetes-client');
+const { Client } = require('kubernetes-client');
+const { config } = require('kubernetes-client/backends/request');
 const JSONStream = require('json-stream');
 const EventEmitter = require('events');
 

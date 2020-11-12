@@ -313,7 +313,7 @@ class Controller extends EventEmitter {
     const maxReplicas = options.getMaxReplicas(options);
     const permanent = replicas < minReplicas;
     if (Date.now() >= nextCreate
-        && ((replicas + 1 < maxReplicas && replicas < Math.ceil(desired))
+        && ((replicas < maxReplicas && replicas < Math.ceil(desired))
             || permanent)) {
       this.lastCreate[selector] = Date.now();
       await this.create(worker, {

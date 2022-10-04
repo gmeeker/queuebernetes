@@ -11,8 +11,9 @@ const logging = new Logging();
 const log = logging.log('queuebernetes-worker');
 
 const start = async () => {
-  const con = process.env.MONGODB || 'mongodb://localhost:27017/test';
-  const client = await mongodb.MongoClient.connect(con, { useNewUrlParser: true });
+  const url = process.env.MONGODB || 'mongodb://localhost:27017/test';
+  const client = new mongodb.MongoClient(url);
+  await client.connect();
   const db = await client.db();
   const options = { exit: false, verbose: 9, createIndexes: true };
   const worker = new Worker(new EngineMongoDB(db), [{ name: 'simple-queue' }], options);

@@ -1,7 +1,7 @@
 {
   "name": "@queuebernetes/pubsub",
   "description": "Redis pub/sub with a stream-like interface.",
-  "version": "0.2.3",
+  "version": "0.3.0",
   "author": "Garrick Meeker",
   "main": "lib/index.js",
   "license": "MIT",
@@ -14,7 +14,7 @@
   },
   "dependencies": {
     "redis-messaging-manager": "^1.6.2",
-    "uuid": "^8.2.0"
+    "uuid": "^9.0.0"
   },
   "engines": {
     "node": ">=8"

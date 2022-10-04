@@ -244,7 +244,9 @@ class Worker extends EventEmitter {
   }
 
   sleep(milliseconds) {
-    return new Promise(resolve => setTimeout(resolve, milliseconds));
+    return new Promise(resolve => {
+      setTimeout(resolve, milliseconds);
+    });
   }
 
   async runLivenessMessage(msg) {

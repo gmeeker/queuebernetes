@@ -1,7 +1,7 @@
 {
   "name": "@queuebernetes/mongodb",
   "description": "MongoDB support for long running job queue for Kubernetes",
-  "version": "0.2.3",
+  "version": "0.3.0",
   "author": "Garrick Meeker",
   "main": "lib/index.js",
   "license": "MIT",
@@ -13,7 +13,7 @@
     "access": "public"
   },
   "dependencies": {
-    "mongodb-queue": "^4.0.0"
+    "mongodb-queue-up": "^5.0.1"
   },
   "engines": {
     "node": ">=8"

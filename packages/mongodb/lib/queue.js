@@ -1,4 +1,4 @@
-const mongoDbQueue = require('mongodb-queue');
+const mongoDbQueue = require('mongodb-queue-up');
 const { promisify } = require('util');
 
 function now() {

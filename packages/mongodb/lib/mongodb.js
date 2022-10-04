@@ -18,7 +18,9 @@ class EngineMongoDB extends EventEmitter {
           this.emit('error', error.toString(), q.name);
         });
     }
-    await new Promise(resolve => setTimeout(resolve, 60 * 60 * 1000));
+    await new Promise(resolve => {
+      setTimeout(resolve, 60 * 60 * 1000);
+    });
     return this.clean(queues);
   }
 
@@ -35,7 +37,9 @@ class EngineMongoDB extends EventEmitter {
         }
       }
     }
-    await new Promise(resolve => setTimeout(resolve, 60 * 60 * 1000));
+    await new Promise(resolve => {
+      setTimeout(resolve, 60 * 60 * 1000);
+    });
     return this.cleanWorkers(workers);
   }
 

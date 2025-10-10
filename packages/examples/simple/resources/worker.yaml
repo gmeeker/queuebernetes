@@ -32,7 +32,7 @@ spec:
         image: 'us-west1-docker.pkg.dev/GCLOUD_PROJECT/GCLOUD_REPOSITORY/queuebernetes-examples:latest'
         imagePullPolicy: Always
         command: ["node"]
-        args: ["/app/simple/worker.js"]
+        args: ["/app/examples/simple/worker.js"]
         # defines the health checking
         livenessProbe:
           # an http probe
@@ -60,6 +60,6 @@ spec:
         - containerPort: 3000
         env:
         - name: MONGODB
-          value: mongodb://testUser:test@mongod-0.mongodb-service.test.svc.cluster.local:27017/testQueue?authMechanism=DEFAULT&authSource=admin
+          value: mongodb://testUser:test@mongodb.test.svc.cluster.local:27017/testQueue?authMechanism=DEFAULT&authSource=admin
         - name: DEBUG
           value: express:*

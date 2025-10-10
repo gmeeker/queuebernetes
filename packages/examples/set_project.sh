@@ -1,7 +1,7 @@
 #!/bin/bash
 cd "`dirname \"$0\"`"
 if test -z "$1"; then
-  echo "Usage: $0 GCLOUD_PROJECT_NAME"
+  echo "Usage: $0 GCLOUD_PROJECT_NAME GCLOUD_REPOSITORY"
   exit 1
 fi
 for i in ./controller/resources/job.yaml \
@@ -9,4 +9,5 @@ for i in ./controller/resources/job.yaml \
   ./controller/resources/controller.yaml \
   ./simple/resources/worker.yaml; do \
   sed "s/GCLOUD_PROJECT/$1/g" < "$i" > tmp && mv tmp "$i"; \
+  sed "s/GCLOUD_REPOSITORY/$2/g" < "$i" > tmp && mv tmp "$i"; \
   done

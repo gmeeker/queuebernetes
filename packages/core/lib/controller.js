@@ -1,6 +1,4 @@
-const { Client } = require('kubernetes-client');
-const { config } = require('kubernetes-client/backends/request');
-const JSONStream = require('json-stream');
+const k8s = require('@kubernetes/client-node');
 const EventEmitter = require('events');
 
 /* eslint-disable no-await-in-loop */
@@ -108,64 +106,69 @@ class Controller extends EventEmitter {
     }
   }
 
+  updateJob(job, worker) {
+    const { namespace, selector } = worker.options;
+    const { name } = job.metadata;
+    if (name) {
+      this.jobs[selector][name] = job;
+      if (!this.pendingDeletion[name]
+          && (job.status.completionTime !== undefined || job.status.failed)) {
+        this.pendingDeletion[name] = true;
+        if (job.status.failed) {
+          this.emit('failure', selector, name, job.status);
+        } else {
+          this.emit('success', selector, name, job.status.completionTime);
+        }
+        if (worker.options.deleteReplica(job, this, worker.options)) {
+          this.emit('delete', job, worker.options);
+          this.client.deleteNamespacedJob({ name, namespace, propagationPolicy: 'Foreground' })
+            .catch(error => {
+              this.emit('error', `while deleting ${name}: ${error.toString()}`);
+            });
+        }
+      }
+    }
+  }
+
   getJobs(worker) {
     const { namespace, selector } = worker.options;
     if (!this.jobs[selector]) {
       this.jobs[selector] = {};
     }
     if (!this.watchStreams[selector]) {
-      const stream = this.client.apis.batch.v1.watch.namespaces(namespace).jobs.getStream({
-        qs: {
-          labelSelector: selector
-        }
+      const listFn = () => this.client.listNamespacedJob({
+        namespace,
+        labelSelector: selector,
       });
-      this.watchStreams[selector] = stream;
-      const jsonStream = new JSONStream();
-      stream.pipe(jsonStream);
-      jsonStream.on('end', () => {
-        // k8s ended the stream.  Restart next time.
-        this.watchStreams[selector] = null;
+
+      const informer = k8s.makeInformer(this.kc, `/apis/batch/v1/namespaces/${namespace}/jobs`, listFn, selector);
+
+      informer.on('add', job => {
+        this.updateJob(job, worker);
       });
-      jsonStream.on('data', object => {
-        const job = object.object;
+      informer.on('change', job => {
+        this.updateJob(job, worker);
+      });
+      informer.on('update', job => {
+        this.updateJob(job, worker);
+      });
+      informer.on('delete', job => {
         const { name } = job.metadata;
         if (name) {
-          switch (object.type) {
-            case 'DELETED':
-              delete this.jobs[selector][name];
-              delete this.pendingDeletion[name];
-              break;
-            case 'ADDED':
-            case 'UPDATED':
-            case 'MODIFIED':
-              this.jobs[selector][name] = object.object;
-              if (!this.pendingDeletion[name]
-                  && (job.status.completionTime !== undefined || job.status.failed)) {
-                this.pendingDeletion[name] = true;
-                if (job.status.failed) {
-                  this.emit('failure', selector, name, job.status);
-                } else {
-                  this.emit('success', selector, name, job.status.completionTime);
-                }
-                if (worker.options.deleteReplica(job, this, worker.options)) {
-                  this.emit('delete', job, worker.options);
-                  const propagationPolicy = {
-                    kind: 'DeleteOptions',
-                    apiVersion: 'v1',
-                    propagationPolicy: 'Foreground'
-                  };
-                  this.client.apis.batch.v1.namespaces(namespace).jobs(name).delete({ body: propagationPolicy })
-                    .catch(error => {
-                      this.emit('error', `while deleting ${name}: ${error.toString()}`);
-                    });
-                }
-              }
-              break;
-            default:
-              break;
-          }
+          delete this.jobs[selector][name];
+          delete this.pendingDeletion[name];
         }
       });
+      informer.on('error', err => {
+        console.error(err);
+        // Restart informer after 5sec
+        setTimeout(() => {
+          informer.start();
+        }, 5000);
+        // k8s ended the stream.  Restart next time.
+        // this.watchStreams[selector] = null;
+      });
+      this.watchStreams[selector] = informer;
     }
   }
 
@@ -202,7 +205,7 @@ class Controller extends EventEmitter {
         livenessQueue.clean();
       }
     }
-    return this.client.apis.batch.v1.namespaces(namespace).jobs.post({ body: manifest })
+    return this.client.createNamespacedJob({ namespace, body: manifest })
       .catch(error => {
         // Do NOT exit because Kubernetes will restart this container
         // and we will create another job too soon.
@@ -391,10 +394,11 @@ class Controller extends EventEmitter {
 
   createClient() {
     if (!this.client) {
-      this.client = new Client({ config: config.getInCluster() });
-      return this.client.loadSpec();
+      const kc = new k8s.KubeConfig();
+      kc.loadFromCluster();
+      this.kc = kc;
+      this.client = kc.makeApiClient(k8s.BatchV1Api);
     }
-    return Promise.resolve(null);
   }
 
   async start() {
@@ -409,7 +413,7 @@ class Controller extends EventEmitter {
         livenessQueue.reset();
       }
     }
-    await this.createClient();
+    this.createClient();
     this.emit('start');
     this.fatal = false;
     this.engine.start(Object.values(this.queueMap), this.workers, this.options);

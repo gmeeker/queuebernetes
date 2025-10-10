@@ -17,7 +17,7 @@ spec:
       restartPolicy: Never
       containers:
       - name: queuebernetes-job
-        image: 'us.gcr.io/GCLOUD_PROJECT/queuebernetes-examples:latest'
+        image: 'us-west1-docker.pkg.dev/GCLOUD_PROJECT/queuebernetes-examples:latest'
         imagePullPolicy: Always
         command: ["node"]
         args: ["/app/examples/controller/job.js"]
@@ -48,7 +48,7 @@ spec:
         - containerPort: 3000
         env:
         - name: MONGODB
-          value: mongodb://testUser:test@mongod-0.mongodb-service.test.svc.cluster.local:27017/testQueue?authMechanism=DEFAULT&authSource=admin
+          value: mongodb://testUser:test@mongodb.test.svc.cluster.local:27017/testQueue?authMechanism=DEFAULT&authSource=admin
         - name: MAX_TASKS
           valueFrom:
             fieldRef:

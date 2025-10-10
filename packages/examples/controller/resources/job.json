@@ -23,7 +23,7 @@
         "containers": [
           {
             "name": "queuebernetes-job",
-            "image": "us.gcr.io/GCLOUD_PROJECT/queuebernetes-examples:latest",
+            "image": "us-west1-docker.pkg.dev/GCLOUD_PROJECT/queuebernetes-examples:latest",
             "imagePullPolicy": "Always",
             "command": ["node"],
             "args": ["/app/examples/controller/job.js"],

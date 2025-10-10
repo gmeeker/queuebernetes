@@ -7,6 +7,7 @@ RUN apk --no-cache add git
 RUN mkdir -p /app/queuebernetes/packages/core
 RUN mkdir -p /app/queuebernetes/packages/examples
 RUN mkdir -p /app/queuebernetes/packages/mongodb
+RUN mkdir -p /app/queuebernetes/packages/pubsub
 
 # Support for git but remove from the image
 RUN apk --no-cache add --virtual native-deps \
@@ -20,7 +21,10 @@ WORKDIR /app/queuebernetes/packages/examples
 ADD packages/examples/package.json /app/queuebernetes/packages/examples/
 WORKDIR /app/queuebernetes/packages/mongodb
 ADD packages/mongodb/package.json /app/queuebernetes/packages/mongodb/
+WORKDIR /app/queuebernetes/packages/pubsub
+ADD packages/pubsub/package.json /app/queuebernetes/packages/pubsub/
 WORKDIR /app/queuebernetes
+RUN yarn install
 RUN npx lerna bootstrap
 
 RUN apk del native-deps

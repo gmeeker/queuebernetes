@@ -58,9 +58,12 @@ const start = async () => {
   // Optional code to get Kubernetes image from the current container and set the manifest.
   // createClient() is only necessary to get controller.client in advance.
   await controller.createClient();
-  const d = await controller.client.apis.apps.v1.namespaces(process.env.POD_NAMESPACE).deployments('queuebernetes-controller').get();
-  if (d && d.body) {
-    const { image } = d.body.spec.template.spec.containers[0];
+  const d = await controller.appsClient.readNamespacedDeployment({
+    name: 'queuebernetes-controller',
+    namespace: process.env.POD_NAMESPACE
+  });
+  if (d && d.spec) {
+    const { image } = d.spec.template.spec.containers[0];
     console.log('Current image', image);
     manifest.spec.template.spec.containers[0].image = image;
   }

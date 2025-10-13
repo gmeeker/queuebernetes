@@ -398,6 +398,7 @@ class Controller extends EventEmitter {
       kc.loadFromCluster();
       this.kc = kc;
       this.client = kc.makeApiClient(k8s.BatchV1Api);
+      this.appsClient = kc.makeApiClient(k8s.AppsV1Api);
     }
   }
 

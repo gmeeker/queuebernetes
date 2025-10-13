@@ -69,7 +69,7 @@ spec:
         - containerPort: 3000
         env:
         - name: MONGODB
-          value: mongodb://testUser:test@mongod-0.mongodb-service.test.svc.cluster.local:27017/testQueue?authMechanism=DEFAULT&authSource=admin
+          value: mongodb://testUser:test@mongodb.test.svc.cluster.local:27017/testQueue?authMechanism=DEFAULT&authSource=admin
         - name: POD_NAME
           valueFrom:
             fieldRef:

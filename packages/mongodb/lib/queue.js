@@ -1,10 +1,6 @@
 const mongoDbQueue = require('mongodb-queue-up');
 const { promisify } = require('util');
 
-function now() {
-  return (new Date()).toISOString();
-}
-
 class Queue {
   constructor(db, name, options) {
     let o = options;
@@ -25,10 +21,10 @@ class Queue {
     this.ping = promisify(this.queue.ping.bind(this.queue));
     this.clean = promisify(this.queue.clean.bind(this.queue));
     this.createIndexes = promisify(this.queue.createIndexes.bind(this.queue));
-    this.total = promisify(this.total.bind(this));
-    this.size = promisify(this.size.bind(this));
-    this.inFlight = promisify(this.inFlight.bind(this));
-    this.done = promisify(this.done.bind(this));
+    this.total = promisify(this.queue.total.bind(this.queue));
+    this.size = promisify(this.queue.size.bind(this.queue));
+    this.inFlight = promisify(this.queue.inFlight.bind(this.queue));
+    this.done = promisify(this.queue.done.bind(this.queue));
   }
 
   isDead(msg) {
@@ -58,35 +54,6 @@ class Queue {
       if (err) return callback(err);
       callback(null, count);
     });
-  }
-
-  // Avoid deprecated mongodb commands
-  total(callback) {
-    this.newCount({}, callback);
-  }
-
-  size(callback) {
-    const query = {
-      deleted: null,
-      visible: { $lte: now() },
-    };
-    this.newCount(query, callback);
-  }
-
-  inFlight(callback) {
-    const query = {
-      ack: { $exists: true },
-      visible: { $gt: now() },
-      deleted: null,
-    };
-    this.newCount(query, callback);
-  }
-
-  done(callback) {
-    const query = {
-      deleted: { $exists: true },
-    };
-    this.newCount(query, callback);
   }
 }
 

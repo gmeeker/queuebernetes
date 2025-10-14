@@ -130,7 +130,7 @@ class Controller extends EventEmitter {
     }
   }
 
-  getJobs(worker) {
+  async getJobs(worker) {
     const { namespace, selector } = worker.options;
     if (!this.jobs[selector]) {
       this.jobs[selector] = {};
@@ -169,6 +169,7 @@ class Controller extends EventEmitter {
         // this.watchStreams[selector] = null;
       });
       this.watchStreams[selector] = informer;
+      await informer.start();
     }
   }
 

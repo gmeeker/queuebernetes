@@ -208,6 +208,44 @@ class Publisher {
 }
 
 /**
+ * Helper for comsuming pub/sub messages.
+*/
+class Consumer {
+  /**
+   * Consumer constructor
+   *
+   * @param {Redis} [client] Redis
+   * @param {string} [channel] Channel
+   */
+  constructor(client, channel) {
+    this.client = client;
+    this.channel = channel;
+    this.callbacks = [];
+    this.client.subscribe(this.channel, (err, numberOfChannels) => {
+      if (err) {
+        console.error('Redis subscribe failed', err);
+      } else {
+        console.log('Connected to redis channel', this.channel, numberOfChannels);
+      }
+    });
+    this.client.on('message', (channel_, message) => {
+      if (channel_ === this.channel) {
+        this.callbacks.forEach(c => c(message));
+      }
+    });
+  }
+
+  /**
+   * subscribe
+   *
+   * @param {CallableFunction} [callback] Callback
+   */
+  subscribe(callback) {
+    this.callbacks.push(callback);
+  }
+}
+
+/**
  * Pub/sub messages without creating additional consumers.
  * This was useful for mubsub but maybe less of a concern for Redis.
  */
@@ -231,10 +269,10 @@ class PubSub {
       this.uri = uri;
     }
     this.channel = channel;
+    this.channelMaps = new Map();
     this.watchers = {};
     this.publishers = {};
     this.callback = this.callback.bind(this);
-    this.subscribed = false;
 
     this.client = new Redis(this.uri);
     this.client.on('error', () => {
@@ -308,11 +346,24 @@ class PubSub {
     }
     if (Object.getOwnPropertyNames(this.watchers).length === 0
         && Object.getOwnPropertyNames(this.publishers).length === 0) {
-      if (this.subscribed) {
-        this.subscribed = false;
+      if (this.channelMaps.has(this.channel)) {
+        this.channelMaps.delete(this.channel);
         this.client.unsubscribe(this.channel);
       }
     }
+  }
+
+  /**
+   * consume
+   *
+   * @param {string} [channel] Channel
+   * @api public
+   */
+  consume(channel) {
+    if (!this.channelMaps.has(channel)) {
+      this.channelMaps.set(channel, new Consumer(this.client, channel));
+    }
+    return this.channelMaps.get(channel);
   }
 
   /**
@@ -327,21 +378,7 @@ class PubSub {
     const watcher = new Watcher(this, query, options);
     watcher.setLogging(this.writeLog);
     this.watchers[watcher.id] = watcher;
-    if (!this.subscribed) {
-      this.client.subscribe(this.channel, (err, numberOfChannels) => {
-        if (err) {
-          console.error('Redis subscribe failed', err);
-        } else {
-          console.log('Connected to redis channel', this.channel, numberOfChannels);
-        }
-      });
-      this.client.on('message', (channel, message) => {
-        if (channel === this.channel) {
-          this.callback(message);
-        }
-      });
-      this.subscribed = true;
-    }
+    this.consume(this.channel, this.callback);
     return watcher;
   }
 

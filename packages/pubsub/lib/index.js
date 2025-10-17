@@ -1,6 +1,5 @@
 const EventEmitter = require('events');
-const { PubsubManager } = require('redis-messaging-manager');
-const { URL } = require('url');
+const Redis = require('ioredis');
 const { v4: uuidv4 } = require('uuid');
 
 /**
@@ -229,44 +228,24 @@ class PubSub {
       // Local socket
       this.uri = { path: uri };
     } else {
-      // redis-messaging-manager doesn't support URI format like ioredis
-      const {
-        hostname, protocol, port, password, pathname
-      } = new URL(uri);
-      if (protocol !== 'redis:' || !hostname) {
-        throw new Error(`Invalid Redis URI ${uri}`);
-      }
-      this.uri = {
-        host: hostname,
-      };
-      if (port !== undefined) {
-        this.uri.port = port;
-      }
-      if (password !== undefined) {
-        this.uri.password = password;
-      }
-      if (pathname && pathname.length > 1) {
-        this.uri.db = pathname.slice(1);
-      }
+      this.uri = uri;
     }
     this.channel = channel;
     this.watchers = {};
     this.publishers = {};
     this.callback = this.callback.bind(this);
+    this.subscribed = false;
 
-    this.client = new PubsubManager(this.uri);
-    this.client.getServerEventStream('error')
-      .subscribe(() => {
-        this.log('Pubsub error event');
-      });
-    this.client.getServerEventStream('connect')
-      .subscribe(() => {
-        this.log('Pubsub redis connect event');
-      });
-    this.client.getServerEventStream('reconnecting')
-      .subscribe(() => {
-        this.log('Pubsub redis reconnecting event');
-      });
+    this.client = new Redis(this.uri);
+    this.client.on('error', () => {
+      this.log('Pubsub error event');
+    });
+    this.client.on('connect', () => {
+      this.log('Pubsub redis connect event');
+    });
+    this.client.on('reconnecting', () => {
+      this.log('Pubsub redis reconnecting event');
+    });
   }
 
   /**
@@ -329,11 +308,10 @@ class PubSub {
     }
     if (Object.getOwnPropertyNames(this.watchers).length === 0
         && Object.getOwnPropertyNames(this.publishers).length === 0) {
-      if (this.subscription) {
-        this.subscription.unsubscribe();
-        this.subscription = null;
+      if (this.subscribed) {
+        this.subscribed = false;
+        this.client.unsubscribe(this.channel);
       }
-      this.consumer = null;
     }
   }
 
@@ -349,11 +327,20 @@ class PubSub {
     const watcher = new Watcher(this, query, options);
     watcher.setLogging(this.writeLog);
     this.watchers[watcher.id] = watcher;
-    if (!this.consumer) {
-      this.consumer = this.client.consume(this.channel);
-    }
-    if (!this.subscription) {
-      this.subscription = this.consumer.subscribe(this.callback);
+    if (!this.subscribed) {
+      this.client.subscribe(this.channel, (err, numberOfChannels) => {
+        if (err) {
+          console.error('Redis subscribe failed', err);
+        } else {
+          console.log('Connected to redis channel', this.channel, numberOfChannels);
+        }
+      });
+      this.client.on('message', (channel, message) => {
+        if (channel === this.channel) {
+          this.callback(message);
+        }
+      });
+      this.subscribed = true;
     }
     return watcher;
   }

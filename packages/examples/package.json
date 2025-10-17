@@ -1,7 +1,7 @@
 {
   "name": "@queuebernetes/examples",
   "description": "Example usage of Queuebernetes",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "author": "Garrick Meeker",
   "main": "lib/index.js",
   "license": "MIT",
@@ -18,8 +18,8 @@
     "body-parser": "^2.2.0",
     "express": "^4.21.2",
     "mongodb": "^6.20.0",
-    "@queuebernetes/core": "^0.4.1",
-    "@queuebernetes/mongodb": "^0.4.1"
+    "@queuebernetes/core": "^0.4.2",
+    "@queuebernetes/mongodb": "^0.4.2"
   },
   "engines": {
     "node": ">=8"

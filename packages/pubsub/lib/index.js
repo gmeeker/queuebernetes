@@ -378,7 +378,7 @@ class PubSub {
     const watcher = new Watcher(this, query, options);
     watcher.setLogging(this.writeLog);
     this.watchers[watcher.id] = watcher;
-    this.consume(this.channel, this.callback);
+    this.consume(this.channel).subscribe(this.callback);
     return watcher;
   }
 
